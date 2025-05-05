@@ -119,7 +119,8 @@ for idx in custom_grid_idx:
 #ax.xaxis.set_major_locator(mdates.YearLocator())
 #ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 
-log_l_normalized = log_l / 100.0
+tau = 0.01
+log_l_normalized = tau * log_l
 ax.plot(10 * S / S[0], linewidth=0.5, c='grey')
 ax.plot(log_l_normalized[0, :], label='bs', linewidth=0.8)
 ax.plot(log_l_normalized[1, :], label='cev', linewidth=0.8)
@@ -136,7 +137,10 @@ for date in custom_grid_dates:
 ax.xaxis.set_major_locator(mdates.YearLocator())
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 
-posterior = softmax(log_l_normalized, axis=0)
+#posterior = softmax(log_l_normalized, axis=0)
+log_normalization = torch.logsumexp(log_l_normalized, dim=0)
+log_posterior = log_l_normalized - log_normalization
+posterior = torch.exp(log_posterior)
 ax.plot(dates, 0.5 * S / S[0], linewidth=0.5, c='grey')
 ax.plot(dates, posterior[0, :], label='bs', linewidth=0.8)
 ax.plot(dates, posterior[1, :], label='cev', linewidth=0.8)
