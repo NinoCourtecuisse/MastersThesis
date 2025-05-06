@@ -40,8 +40,8 @@ T = len(S)
 n_models = 4
 log_l = torch.zeros(size=(n_models, T))
 optimization_freq = 20  #days
-optimization_times = torch.arange(optimization_freq, len(S), step=optimization_freq)
-n_grad_steps = 50
+optimization_times = torch.arange(window + optimization_freq, T, step=optimization_freq)
+n_grad_steps = 20
 
 # Bayesian analysis
 
@@ -49,12 +49,12 @@ logging.info(f"Model: BS")
 mu = torch.tensor(0.01)
 sigma = torch.tensor(0.2)
 bs_model = Bs(mu, sigma)
-mu, sigma = bs_model.inv_reparam()
-logging.info(f"Init params: mu: {mu.item():.3f}, sigma: {sigma.item():.3f}")
+logging.info(f"Init params: " + bs_model.print_params())
 
 tic = time()
 optimizer = torch.optim.Adam(bs_model.parameters(), lr=0.1)
-log_l[0, :] = likelihood_with_updates(bs_model, optimizer, optimization_times, n_grad_steps, S, window, logging)
+log_l[0, :] = bs_model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                               S, dt, window, logging=logging, verbose=True)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 
@@ -63,12 +63,12 @@ mu = torch.tensor(0.01)
 delta = torch.tensor(10.0)
 beta = torch.tensor(1.0)
 cev_model = Cev(mu, delta, beta)
-mu, delta, beta = cev_model.inv_reparam()
-logging.info(f"Init params: mu: {mu.item():.3f}, delta: {delta.item():.3f}, beta: {beta.item():.3f}")
+logging.info(f"Init params: " + cev_model.print_params())
 
 tic = time()
 optimizer = torch.optim.Adam(cev_model.parameters(), lr=0.1)
-log_l[1, :] = likelihood_with_updates(cev_model, optimizer, optimization_times, n_grad_steps, S, window, logging)
+log_l[1, :] = cev_model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                                S, dt, window, logging=logging, verbose=True)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 
@@ -80,12 +80,12 @@ sigma = torch.tensor(0.5)
 rho = torch.tensor(-0.3)
 v0 = torch.tensor(0.04)
 heston_model = Heston(mu, k, theta, sigma, rho, v0)
-mu, k, theta, sigma, rho, v0 = heston_model.inv_reparam()
-logging.info(f"Init params: mu: {mu.item():.3f}, k: {k.item():.3f}, theta: {theta.item():.3f}, sigma: {sigma.item():.3f}, rho: {rho.item():.3f}, v0: {v0.item():.3f}")
+logging.info(f"Init params: " + heston_model.print_params())
 
 tic = time()
 optimizer = torch.optim.Adam(heston_model.parameters(), lr=0.1)
-log_l[2, :] = likelihood_with_updates(heston_model, optimizer, optimization_times, n_grad_steps, S, window, logging)
+log_l[2, :] = heston_model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                                   S, dt, window, logging=logging, verbose=True)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 
@@ -96,12 +96,12 @@ sigma = torch.tensor(0.5)
 rho = torch.tensor(-0.8)
 delta_0 = torch.tensor(10.0)
 sabr_model = Sabr(mu, beta, sigma, rho, delta_0)
-mu, beta, sigma, rho, delta_0 = sabr_model.inv_reparam()
-logging.info(f"Init params: mu: {mu.item():.3f}, beta: {beta.item():.3f}, sigma: {sigma.item():.3f}, rho: {rho.item():.3f}, delta_0: {delta_0.item()}")
+logging.info(f"Init params: " + sabr_model.print_params())
 
 tic = time()
 optimizer = torch.optim.Adam(sabr_model.parameters(), lr=0.1)
-log_l[3, :] = likelihood_with_updates(sabr_model, optimizer, optimization_times, n_grad_steps, S, window, logging)
+log_l[3, :] = sabr_model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                                 S, dt, window, logging=logging, verbose=True)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 
