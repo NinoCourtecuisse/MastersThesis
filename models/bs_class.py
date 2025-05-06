@@ -1,20 +1,25 @@
+from models.model_class import Model
+
 import torch
 from torch.distributions import Normal
 
-class Bs(torch.nn.Module):
+class Bs(Model):
     def __init__(self, mu, sigma):
-        super().__init__()
         """
-        Reparametrize to enforce the following constraint: 0 < sigma
+        Reparametrize to enforce: sigma > 0
         """
-        self.mu = torch.nn.Parameter(mu)
-        self.l_sigma = torch.nn.Parameter(torch.log(sigma))     # sigma -> log(sigma)
-        self.params_names = ['mu', 'sigma']
+        params = torch.nn.ParameterList([
+            torch.nn.Parameter(mu),
+            torch.nn.Parameter(torch.log(sigma))
+        ])
+        params_names = ['mu', 'sigma']
+        super().__init__(params, params_names)
+
         self.model_type = 'BS'
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.mu, torch.exp(self.l_sigma)
+        return self.params[0], torch.exp(self.params[1])
     
     def simulate(self, s0, delta_t, T, M):
         with torch.no_grad():
@@ -39,7 +44,7 @@ class Bs(torch.nn.Module):
         transition = torch.exp(Normal(loc=mean, scale=torch.sqrt(var)).log_prob(torch.log(s_next)))
         return torch.relu(transition - 1e-6) + 1e-6
 
-    def forward(self, spot_prices, t, window=100, delta_t=1/252):
+    def forward(self, spot_prices, t, delta_t, window=100):
         start = max(t - window, 0)
         transition_evals = self.transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
         log_likelihood = transition_evals.log().sum()

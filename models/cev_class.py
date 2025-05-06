@@ -1,23 +1,27 @@
+from models.model_class import Model
+
 import torch
 from torch.distributions import Normal
 
-class Cev(torch.nn.Module):
+class Cev(Model):
     def __init__(self, mu, delta, beta):
-        super().__init__()
         """
-        Reparametrize to enforce the following constraint: 
-        0 < delta, 0 < beta
+        Reparametrize to enforce: delta > 0, beta > 0
         """
-        self.mu = torch.nn.Parameter(mu)
-        self.l_delta = torch.nn.Parameter(torch.log(delta))     # sigma -> log(sigma)
-        self.l_beta = torch.nn.Parameter(torch.log(beta))       # beta -> log(beta)
-        self.params_names = ['mu', 'delta', 'beta']
+        params = torch.nn.ParameterList([
+            torch.nn.Parameter(mu),
+            torch.nn.Parameter(torch.log(delta)),
+            torch.nn.Parameter(torch.log(beta))
+        ])
+        params_names = ['mu', 'delta', 'beta']
+        super().__init__(params, params_names)
+
         self.model_type = 'CEV'
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.mu, torch.exp(self.l_delta), torch.exp(self.l_beta)
-    
+        return self.params[0], torch.exp(self.params[1]), torch.exp(self.params[2])
+
     def simulate(self, s0, delta_t, T, M):
         with torch.no_grad():
             n = int(torch.round(T / delta_t).item())
@@ -29,7 +33,7 @@ class Cev(torch.nn.Module):
                 s[i, :] = s[i-1, :] + s[i-1, :] * mu * delta_t + \
                     delta * (s[i-1, :] ** (beta / 2)) * Z[i-1, :] * torch.sqrt(delta_t)
         return s
-    
+
     def transition(self, s, s_next, delta_t=1/252):
         """
         Evaluates p_(log(s_next) ; log(s)) over a time-step delta_t. 
@@ -44,8 +48,8 @@ class Cev(torch.nn.Module):
         var = local_var * delta_t
         transition = torch.exp(Normal(loc=mean, scale=torch.sqrt(var)).log_prob(torch.log(s_next)))
         return torch.relu(transition - 1e-6) + 1e-6
-    
-    def forward(self, spot_prices, t, window=100, delta_t=1/252):
+
+    def forward(self, spot_prices, t, delta_t, window=100):
         start = max(t - window, 0)
         transition_evals = self.transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
         log_likelihood = transition_evals.log().sum()

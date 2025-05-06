@@ -1,28 +1,31 @@
+from models.model_class import Model
+
 import torch
 from torch.distributions import Normal, Poisson, Chi2
 import math
 
-class Heston(torch.nn.Module):
+class Heston(Model):
     def __init__(self, mu, k, theta, sigma, rho, v0):
-        super().__init__()
         """
-        Reparametrize to enforce the following constraints:
-        0 < k ; 0 < theta ; 0 < sigma ; -1 < rho < 1
+        Reparametrize to enforce: k > 0, theta > 0, sigma > 0,  -1 < rho < 1
         """
-        #self.mu = torch.nn.Parameter(mu)
+        params = torch.nn.ParameterList([
+            torch.nn.Parameter(torch.log(k)),
+            torch.nn.Parameter(torch.log(theta)),
+            torch.nn.Parameter(torch.log(sigma)),
+            torch.nn.Parameter(torch.atanh(rho))
+        ])
         self.mu = mu
-        self.l_k = torch.nn.Parameter(torch.log(k))             # k -> log(k)
-        self.l_theta = torch.nn.Parameter(torch.log(theta))     # theta -> log(theta)
-        self.l_sigma = torch.nn.Parameter(torch.log(sigma))     # sigma -> log(sigma)
-        self.at_rho = torch.nn.Parameter(torch.atanh(rho))      # rho -> atanh(rho)
-
         self.v0 = v0
-        self.params_names = ['mu', 'k', 'theta', 'sigma', 'rho', 'v0']
+
+        params_names = ['mu', 'k', 'theta', 'sigma', 'rho', 'v0']
+        super().__init__(params, params_names)
         self.model_type = 'SV'
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.mu, torch.exp(self.l_k), torch.exp(self.l_theta), torch.exp(self.l_sigma), torch.tanh(self.at_rho), self.v0
+        return self.mu, torch.exp(self.params[0]), torch.exp(self.params[1]), \
+            torch.exp(self.params[2]), torch.tanh(self.params[3]), self.v0
     
     def step(self, x0, v0, delta_t):
         """
@@ -53,9 +56,6 @@ class Heston(torch.nn.Module):
                 log_spot_path[i] = X
                 variance_path[i] = V
         return log_spot_path, variance_path
-    
-    def update_v0(self, v0):
-        self.v0 = v0
 
     def euler_transition(self, s, v, s_next, delta_t=1/252):
         """
@@ -72,7 +72,7 @@ class Heston(torch.nn.Module):
     
     def sample_variance(self, n_samples, v, delta_t):
         # Sample the next variance from ncx2
-        mu, k, theta, sigma, rho, _ = self.inv_reparam()
+        mu, k, theta, sigma, rho, v0 = self.inv_reparam()
         n = 4 * k * torch.exp(-k * delta_t) / (sigma**2 * (1 - torch.exp(-k * delta_t)))
         d = 4 * k * theta / sigma**2
         N = Poisson(rate = v * n / 2).sample(sample_shape=torch.Size((n_samples,)))
@@ -87,7 +87,7 @@ class Heston(torch.nn.Module):
         Evaluates p_(log(s_next) ; log(s), v) over a time-step delta_t.
         """
         transition = torch.zeros_like(s_next)
-        mu, k, theta, sigma, rho, _ = self.inv_reparam()
+        mu, k, theta, sigma, rho, v0 = self.inv_reparam()
         
         n_samples = 10000
         v_next = self.sample_variance(n_samples, v, delta_t)    # Shape: (n_samples, len(v))
@@ -129,7 +129,7 @@ class Heston(torch.nn.Module):
             v_prev = var_chunk[-1].clone()
         return torch.relu(var_path - 1e-4) + 1e-4
     
-    def variance_path(self, spot_prices, delta_t):
+    def variance_path_euler(self, spot_prices, delta_t):
         # Generate a deterministic path, conditional on the spot path
         mu, k, theta, sigma, rho, v0 = self.inv_reparam()
         log_spot_diff = torch.log(spot_prices[1:]) - torch.log(spot_prices[:-1])
@@ -162,8 +162,7 @@ class Heston(torch.nn.Module):
             var_path[t] = raw_var
         return var_path
 
-    def forward(self, spot_prices, t, window=100, delta_t=1/252, update_v0=False):
-        # Generate a variance path
+    def forward(self, spot_prices, t, delta_t, window=100, update_v0=False):
         start = max(t - window, 0)
         self.mu = torch.mean((spot_prices[start+1:t+1] - spot_prices[start:t]) / spot_prices[start:t])
         var_path = self.variance_path_mm(spot_prices[start:t], delta_t)
