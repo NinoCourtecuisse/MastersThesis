@@ -22,7 +22,7 @@ class Model(torch.nn.Module, ABC):
                                 spot_prices, dt, window, logging=None, verbose=False):
         T = len(spot_prices)
         log_l = torch.zeros(size=(T,))
-        for t in range(window + 1, T):
+        for t in range(window, T):
             if verbose and t % 100 == 0: print(t)
 
             if t in optimization_times:

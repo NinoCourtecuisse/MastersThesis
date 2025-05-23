@@ -24,6 +24,9 @@ class Sabr(Model):
         # Inverse the reparametrization.
         return self.mu, torch.tanh(self.params[0]) + 1, torch.exp(self.params[1]), torch.tanh(self.params[2]), self.delta_0
     
+    def get_params(self):
+        return [torch.tanh(self.params[0]) + 1, torch.exp(self.params[1]), torch.tanh(self.params[2])]
+    
     def local_var(self, t, delta, s):
         mu, beta, sigma, rho, _ = self.inv_reparam()
         #return torch.exp((2 - beta) * mu * t) * delta**2 * s**(beta - 2)

@@ -9,9 +9,9 @@ class Bs(Model):
         Reparametrize to enforce: sigma > 0
         """
         params = torch.nn.ParameterList([
-            torch.nn.Parameter(mu),
             torch.nn.Parameter(torch.log(sigma))
         ])
+        self.mu = mu
         params_names = ['mu', 'sigma']
         super().__init__(params, params_names)
 
@@ -19,7 +19,10 @@ class Bs(Model):
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.params[0], torch.exp(self.params[1])
+        return self.mu, torch.exp(self.params[0])
+    
+    def get_params(self):
+        return [torch.exp(self.params[0].detach())]
     
     def simulate(self, s0, delta_t, T, M):
         with torch.no_grad():
@@ -46,6 +49,7 @@ class Bs(Model):
 
     def forward(self, spot_prices, t, delta_t, window=100):
         start = max(t - window, 0)
+        self.mu = torch.mean((spot_prices[start+1:t+1] - spot_prices[start:t]) / spot_prices[start:t])
         transition_evals = self.transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
         log_likelihood = transition_evals.log().sum()
         return log_likelihood

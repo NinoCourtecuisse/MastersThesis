@@ -9,10 +9,10 @@ class Cev(Model):
         Reparametrize to enforce: delta > 0, beta > 0
         """
         params = torch.nn.ParameterList([
-            torch.nn.Parameter(mu),
             torch.nn.Parameter(torch.log(delta)),
             torch.nn.Parameter(torch.log(beta))
         ])
+        self.mu = mu
         params_names = ['mu', 'delta', 'beta']
         super().__init__(params, params_names)
 
@@ -20,7 +20,10 @@ class Cev(Model):
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.params[0], torch.exp(self.params[1]), torch.exp(self.params[2])
+        return self.mu, torch.exp(self.params[0]), torch.exp(self.params[1])
+    
+    def get_params(self):
+        return [torch.exp(self.params[0].detach()), torch.exp(self.params[1].detach())]
 
     def simulate(self, s0, delta_t, T, M):
         with torch.no_grad():
@@ -51,6 +54,7 @@ class Cev(Model):
 
     def forward(self, spot_prices, t, delta_t, window=100):
         start = max(t - window, 0)
+        self.mu = torch.mean((spot_prices[start+1:t+1] - spot_prices[start:t]) / spot_prices[start:t])
         transition_evals = self.transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
         log_likelihood = transition_evals.log().sum()
         return log_likelihood
