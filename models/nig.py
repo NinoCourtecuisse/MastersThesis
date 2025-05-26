@@ -37,47 +37,55 @@ def torch_k1e(x):
 
 
 class Nig(Model):
-    def __init__(self, mu, alpha, beta, delta):
+    def __init__(self, mu, sigma, xi, neta):
         """
-        Reparametrize to enforce: alpha > 0, -1 < beta / alpha < 1, delta > 0
+        Reparametrize to enforce: sigma, neta > 0
         """
-        
-        psi = beta / alpha
         params = torch.nn.ParameterDict({
             'mu': torch.nn.Parameter(mu),
-            'log_alpha': torch.nn.Parameter(torch.log(alpha)),
-            'atanh_psi': torch.nn.Parameter(torch.atanh(psi)),
-            'log_delta': torch.nn.Parameter(torch.log(delta)),
+            'log_sigma': torch.nn.Parameter(torch.log(sigma)),
+            'xi': torch.nn.Parameter(xi),
+            'log_neta': torch.nn.Parameter(torch.log(neta)),
         })
-        #self.mu = mu
-        params_names = ['mu', 'alpha', 'beta', 'delta']
+        params_names = ['mu', 'sigma', 'xi', 'neta']
         super().__init__(params, params_names)
 
         self.model_type = 'NIG'
 
     def get_params(self):
         mu = self.params["mu"].detach()
-        alpha = torch.exp(self.params["log_alpha"].detach())
-        psi = torch.tanh(self.params["atanh_psi"].detach())
-        delta = torch.exp(self.params['log_delta'].detach())
-        return mu, alpha, alpha * psi, delta
+        sigma = torch.exp(self.params["log_sigma"].detach())
+        xi = self.params["xi"].detach()
+        neta = torch.exp(self.params['log_neta'].detach())
+        return mu, sigma, xi, neta
 
     def inv_reparam(self):
+        "Inverse reparametrization to the original."
         mu = self.params["mu"]
-        alpha = torch.exp(self.params["log_alpha"])
-        psi = torch.tanh(self.params["atanh_psi"])
-        delta = torch.exp(self.params['log_delta'])
-        return mu, alpha, alpha * psi, delta
+        sigma = torch.exp(self.params["log_sigma"])
+        xi = self.params["xi"]
+        neta = torch.exp(self.params['log_neta'])
+        
+        sigma_tilde = sigma / torch.sqrt(1 + neta * xi**2)
 
-    def get_moments(self, t):
+        mu_tilde = -sigma_tilde * xi + mu
+        alpha_tilde = torch.sqrt(1/neta + xi**2) / sigma_tilde
+        beta_tilde = xi / sigma_tilde
+        delta_tilde = sigma_tilde / torch.sqrt(neta)
+        return mu_tilde, alpha_tilde, beta_tilde, delta_tilde
+
+    def get_moments(self):
         """
-        Return the first two moments of x_t = log(s_t / s_0)
+        Return the first two moments of x_t = log(s_t / s_0) at t=1
         """
         mu, alpha, beta, delta = self.inv_reparam()
         gamma = torch.sqrt(alpha**2 - beta**2)
+
         mean = mu + delta * beta / gamma
         var = delta * alpha**2 / gamma**3
-        return t * mean, t * torch.sqrt(var)
+        skew = 3 * beta / (alpha * torch.sqrt(delta * gamma))
+        ekurt = 3 * (1 + 4 * beta**2 / alpha**2) / (delta * gamma)
+        return mean, torch.sqrt(var), skew, ekurt
 
     def simulate(self, s0, dt, T, M=1):
         with torch.no_grad():
@@ -123,14 +131,18 @@ class Nig(Model):
         return torch.relu(log_transition + 15) - 15
         return torch.relu(transition - 1e-6) + 1e-6
     
-    def forward(self, spot_prices, t, delta_t, window):
-        start = max(t - window, 0)
-        #self.mu = torch.mean(torch.log(spot_prices[start+1:t+1] / spot_prices[start:t])) / delta_t \
-        #            - delta * beta / torch.sqrt(alpha**2 - beta**2)
+    def forward(self, spot_prices, t, delta_t, beta, window=None):
+        if window:
+            start = max(t - window, 0)
+        else:
+            start = 0
+        #self.params["mu"] = torch.mean(torch.log(spot_prices[start+1:t+1] / spot_prices[start:t])) / delta_t
 
         transition_evals = self.transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
         #log_likelihood = transition_evals.log().sum()
-        log_likelihood = transition_evals.sum()
+        #log_likelihood = transition_evals.sum()
+        decay = beta**(torch.arange(t - 1, start - 1, -1))
+        log_likelihood = decay.inner(transition_evals)
 
         return log_likelihood
 
