@@ -7,3 +7,4 @@
 *.pt
 .vscode/c_cpp_properties.json
 PyMB/likelihoods/tmb_tmp/*
+.vscode/settings.json
