@@ -6,30 +6,35 @@ import math
 
 class Heston(Model):
     def __init__(self, mu, k, theta, sigma, rho, v0):
-        """
-        Reparametrize to enforce: k > 0, theta > 0, sigma > 0,  -1 < rho < 1
-        """
-        params = torch.nn.ParameterList([
-            torch.nn.Parameter(torch.log(k)),
-            torch.nn.Parameter(torch.log(theta)),
-            torch.nn.Parameter(torch.log(sigma)),
-            torch.nn.Parameter(torch.atanh(rho))
-        ])
+        params = torch.nn.ParameterDict({
+            'log_k': torch.nn.Parameter(torch.log(k)),
+            'log_theta': torch.nn.Parameter(torch.log(theta)),
+            'log_sigma': torch.nn.Parameter(torch.log(sigma)),
+            'atanh_rho': torch.nn.Parameter(torch.atanh(rho))
+        })
         self.mu = mu
         self.v0 = v0
 
-        params_names = ['mu', 'k', 'theta', 'sigma', 'rho', 'v0']
-        super().__init__(params, params_names)
+        super().__init__(params)
         self.model_type = 'SV'
 
     def inv_reparam(self):
         # Inverse the reparametrization.
-        return self.mu, torch.exp(self.params[0]), torch.exp(self.params[1]), \
-            torch.exp(self.params[2]), torch.tanh(self.params[3]), self.v0
+        return self.mu, torch.exp(self.params['log_k']), \
+                torch.exp(self.params['log_theta']), \
+                torch.exp(self.params['log_sigma']), \
+                torch.tanh(self.params['atanh_rho']), self.v0
 
     def get_params(self):
-        return [torch.exp(self.params[0]), torch.exp(self.params[1]), \
-            torch.exp(self.params[2]), torch.tanh(self.params[3])]
+        params = {
+            'mu': self.mu.detach(),
+            'k': torch.exp(self.params['log_k'].detach()),
+            'theta': torch.exp(self.params['log_theta'].detach()),
+            'sigma': torch.exp(self.params['log_sigma'].detach()),
+            'rho': torch.tanh(self.params['atanh_rho'].detach()),
+            'v0': self.v0.detach()
+        }
+        return params
     
     def step(self, x0, v0, delta_t):
         """
@@ -283,3 +288,23 @@ class Heston(Model):
 
         lnpX = - torch.log(2 * delta_t * math.pi) - Dv + cm1/delta_t + c0 + delta_t * c1 + 0.5 * delta_t**2 * c2
         return torch.exp(lnpX)
+    
+    def euler_joint_density(self, s, v, s_next, v_next, delta_t):
+        mu, k, theta, sigma, rho, _ = self.inv_reparam()
+
+        mean_w = torch.log(v) + ((k * theta - 0.5 * sigma**2) / v - k) * delta_t     # w = log(v)
+        std_w = sigma * torch.sqrt(delta_t / v)
+
+        true_mean = theta + (v - theta) * torch.exp(- k * delta_t)
+        true_var = v * sigma**2 * torch.exp( -k * delta_t) * (1 - torch.exp(-k * delta_t)) / k + theta * sigma**2 * (1 - torch.exp(-k * delta_t))**2 / (2 * k)
+
+        # Moments matching for lognorm
+        std_w = torch.sqrt(torch.log(1 + true_var / true_mean**2))
+        mean_w = torch.log(true_mean) - 0.5 * std_w**2
+
+        mean_x = torch.log(s) + (mu - 0.5 * v_next) * delta_t + (torch.sqrt(v_next * v) / sigma) * rho * (torch.log(v_next) - mean_w)
+        std_x = torch.sqrt((1 - rho**2) * v_next * delta_t) * torch.ones_like(mean_x)
+
+        log_transition = Normal(loc=mean_x, scale=std_x).log_prob(torch.log(s_next)) \
+                    + Normal(loc=mean_w, scale=std_w).log_prob(torch.log(v_next))
+        return torch.exp(log_transition)

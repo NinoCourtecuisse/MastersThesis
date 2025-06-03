@@ -17,11 +17,11 @@ class Model(torch.nn.Module, ABC):
         return f", ".join(string)
 
     def likelihood_with_updates(self, optimizer, optimization_times, n_grad_steps, \
-                                spot_prices, dt, decay_coef, window, \
+                                spot_prices, dt, decay_coef, window, start, \
                                 logging=None, verbose=False):
         T = len(spot_prices)
         log_l = torch.zeros(size=(T,))
-        for t in range(window, T):
+        for t in range(start, T):
             if verbose and t % 100 == 0: print(t)
 
             if t in optimization_times:
@@ -31,11 +31,11 @@ class Model(torch.nn.Module, ABC):
                     loss.backward()
                     optimizer.step()
 
-                    if logging is not None:
-                        logging.info(f"t: {t}, " + self.print_params())
+            if logging is not None and t % 500 == 0:
+                logging.info(f"t: {t}, " + self.print_params())
 
             with torch.no_grad():
-                if t >= window and self.model_type == 'SV':
+                if self.model_type == 'SV':
                     log_l[t] = self(spot_prices, t=t, delta_t=dt, decay_coef=decay_coef, window=window, update_v0=True)
                 else:
                     log_l[t] = self(spot_prices, t=t, delta_t=dt, decay_coef=decay_coef, window=window)
