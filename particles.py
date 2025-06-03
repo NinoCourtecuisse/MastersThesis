@@ -8,6 +8,7 @@ from time import time
 from models.bs_class import Bs
 from models.cev_class import Cev
 from models.nig import Nig
+from models.sv_class import Sv
 from bayes.prior import Prior
 
 from torch.distributions import Uniform
@@ -37,10 +38,10 @@ S = torch.tensor(S, dtype=torch.float32)
 
 # Bayesian setup
 dt = torch.tensor(1/252, requires_grad=False)
-window = None
-decay_coef = 0.99
+window = 200
+decay_coef = 1.0
 T = len(S)
-n_models = 3
+n_models = 4
 log_l = torch.zeros(size=(n_models, T))
 optimization_freq = 20  # days
 if window:
@@ -108,7 +109,7 @@ nig_prior = Prior([
 ])
 tic = time()
 n_particles = 20
-logging.info(f"Number of CEV particles: {n_particles}")
+logging.info(f"Number of NIG particles: {n_particles}")
 nig_log_l = torch.zeros(size=(n_particles, T))
 for i in range(n_particles):
     particle = nig_prior.sample()
@@ -123,3 +124,30 @@ for i in range(n_particles):
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 torch.save(nig_log_l, f='logs/nig_log_l.pt')
+
+
+# SV particles
+log_returns = torch.log(S[1:] / S[:-1]).numpy()
+sv_prior = Prior([
+    Uniform(1e-4, 0.5),
+    Uniform(1e-4, 1.0),
+    Uniform(0.5, 0.99),
+    Uniform(-0.99, 0.0),
+    Uniform(-0.0001, 0.0001)
+])
+tic = time()
+n_particles = 20
+logging.info(f"Number of SV particles: {n_particles}")
+sv_log_l = torch.zeros(size=(n_particles, T))
+for i in range(n_particles):
+    particles = sv_prior.sample()
+    model = Sv(*particles, log_returns)
+    params = model.get_params()
+    logging.info(f"{i} / {n_particles}")
+    logging.info(f"t=0 sigma_y={params['sigma_y']:.3f}, sigma_h={params['sigma_h']:.3f}, phi={params['phi']:.3f}, phi={params['rho']:.3f}, mu={params['mu']:.3f}")
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+    sv_log_l[i, :] = model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                                   window, start, logging=logging, verbose=False)
+tac = time()
+logging.info(f'Elapsed time: {tac - tic:.3f}')
+torch.save(sv_log_l, f='logs/sv_log_l.pt')

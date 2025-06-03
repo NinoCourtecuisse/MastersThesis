@@ -24,10 +24,11 @@ T = len(S)
 bs_log_l = torch.load('logs/bs_log_l.pt')
 cev_log_l = torch.load('logs/cev_log_l.pt')
 nig_log_l = torch.load('logs/nig_log_l.pt')
+sv_log_l = torch.load('logs/sv_log_l.pt')
 
 optimization_freq = 20  # days
-window = None
-decay_coef = 0.99
+window = 200
+decay_coef = 1.0
 if window:
     start = window
 else:
@@ -36,7 +37,7 @@ optimization_times = torch.arange(start + optimization_freq, T, step=optimizatio
 n_grad_steps = 20
 
 tau = 0.1
-log_l_normalized = tau * torch.cat([bs_log_l, cev_log_l, nig_log_l], dim=0)
+log_l_normalized = tau * torch.cat([bs_log_l, cev_log_l, nig_log_l, sv_log_l], dim=0)
 log_normalization = torch.logsumexp(log_l_normalized, dim=0)
 log_posterior = log_l_normalized - log_normalization
 posterior = torch.exp(log_posterior)
@@ -54,12 +55,16 @@ for k in range(posterior.shape[0]):
         ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='red', label='cev')
     elif k==2 * n_particles:
         ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='green', label='nig')
+    elif k==3 * n_particles:
+        ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='pink', label='sv')
     elif k // n_particles == 0:
         ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='blue')
     elif k // n_particles == 1:
         ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='red')
-    else:
+    elif k // n_particles == 2:
         ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='green')
+    else:
+        ax.plot(plotting_times, posterior[k, plotting_index], linewidth=0.5, marker='+', markersize=1, color='pink')
 
 ax.xaxis.set_major_locator(mdates.YearLocator())
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
