@@ -8,6 +8,7 @@ from time import time
 from models.bs_class import Bs
 from models.cev_class import Cev
 from models.nig import Nig
+from models.sv_class import Sv
 
 logging.basicConfig(
     filename='logs/test.log',
@@ -18,7 +19,7 @@ logging.basicConfig(
 
 # Load data
 start = datetime.datetime.strptime('2006-01-03', '%Y-%m-%d')
-end = datetime.datetime.strptime('2012-12-31', '%Y-%m-%d')
+end = datetime.datetime.strptime('2023-08-31', '%Y-%m-%d')
 
 SPOT_PATH = 'data/spx_spot.csv'
 spot_data = pd.read_csv(SPOT_PATH, sep=',')
@@ -32,10 +33,10 @@ S = torch.tensor(S, dtype=torch.float32)
 
 # Bayesian setup
 dt = torch.tensor(1/252, requires_grad=False)
-window = None
-decay_coef = 0.99
+window = 200
+decay_coef = 1.0
 T = len(S)
-n_models = 3
+n_models = 4
 log_l = torch.zeros(size=(n_models, T))
 optimization_freq = 20  # days
 if window:
@@ -90,6 +91,22 @@ log_l[2, :] = nig_model.likelihood_with_updates(optimizer, optimization_times, n
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
 
+logging.info(f"Model: SV")
+sigma_y = torch.tensor(0.01)
+sigma_h = torch.tensor(0.25)
+phi = torch.tensor(0.95)
+rho = torch.tensor(-0.7)
+mu = torch.tensor(0.0)
+log_returns = torch.log(S[1:] / S[:-1]).numpy()
+sv_model = Sv(sigma_y, sigma_h, phi, rho, mu, log_returns)
+logging.info(f"Init params: " + sv_model.print_params())
+tic = time()
+optimizer = torch.optim.Adam(sv_model.parameters(), lr=0.1)
+log_l[3, :] = sv_model.likelihood_with_updates(optimizer, optimization_times, n_grad_steps, \
+                                                window, start, logging=logging, verbose=True)
+tac = time()
+logging.info(f'Elapsed time: {tac - tic:.3f}')
+
 
 
 import matplotlib.dates as mdates
@@ -104,12 +121,13 @@ custom_grid_idx = [0, *optimization_times]
 for idx in custom_grid_idx:
     ax.axvline(idx, color='gray', linestyle=':', linewidth=0.8, alpha=1.0)
 
-tau = 0.02
+tau = 0.01
 log_l_normalized = tau * log_l
 ax.plot(10 * S / S[0], linewidth=0.5, c='grey')
 ax.plot(log_l_normalized[0, :], label='bs', linewidth=0.8)
 ax.plot(log_l_normalized[1, :], label='cev', linewidth=0.8)
 ax.plot(log_l_normalized[2, :], label='nig', linewidth=0.8)
+ax.plot(log_l_normalized[3, :], label='sv', linewidth=0.8)
 ax.grid()
 ax.legend()
 plt.savefig('figures/test_likelihoods.png')
@@ -128,6 +146,7 @@ ax.plot(dates, 0.5 * S / S[0], linewidth=0.5, c='grey')
 ax.plot(dates, posterior[0, :], label='bs', linewidth=0.8)
 ax.plot(dates, posterior[1, :], label='cev', linewidth=0.8)
 ax.plot(dates, posterior[2, :], label='nig', linewidth=0.8)
+ax.plot(dates, posterior[3, :], label='sv', linewidth=0.8)
 ax.grid()
 ax.legend()
 plt.savefig('figures/test_posteriors.png')
