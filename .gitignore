@@ -4,3 +4,6 @@
 /data/*
 .venv/*
 .vscode/launch.json
+*.pt
+.vscode/c_cpp_properties.json
+PyMB/likelihoods/tmb_tmp/*
