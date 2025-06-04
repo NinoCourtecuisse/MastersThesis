@@ -3,17 +3,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
 import torch
-from time import time
-from scipy.special import softmax
 
-from models.sabr_class import Sabr
-from models.heston_class import Heston
 from models.bs_class import Bs
 from models.cev_class import Cev
-from bayes.utils import likelihood_with_updates
 
 logging.basicConfig(
-    filename='logs/estimate_nothing.log',
+    filename='logs/estimate_nothing/estimate_nothing.log',
     filemode='w',
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -33,10 +28,12 @@ S = spot_data['close'].to_numpy()
 dates = spot_data.index.to_numpy()
 S = torch.tensor(S, dtype=torch.float32)
 
+
 # STEP 1: Determine fixed set of parameters
 #   Calibrate each models every months (compute MLE)
 dt = torch.tensor(1/252, requires_grad=False)
 window = 200
+decay_coef = 1.0
 T = len(S)
 n_models = 4
 optimization_freq = 20  #days
@@ -52,11 +49,12 @@ def compute_mle(optimization_times, model, optimizer, verbose=False):
 
         for _ in range(n_grad_steps):
             optimizer.zero_grad()
-            loss = - model(S, t=t, delta_t=dt, window=window)
+            loss = - model(S, t=t, delta_t=dt, decay_coef=decay_coef, window=window)
             loss.backward()
             optimizer.step()
 
-        mles[i] = torch.tensor([p.item() for p in model.get_params()])
+        params = model.get_params()
+        mles[i] = torch.tensor([p for p in params.values()])
     return mles
         
 mu = torch.tensor(0.01)
@@ -77,31 +75,36 @@ logging.info(f"cev mles: \n {cev_mles}")
 # Span 5 - 10 points between the lowest and highest values
 bs_min = torch.min(bs_mles, dim=0)[0]
 bs_max = torch.max(bs_mles, dim=0)[0]
-w = torch.linspace(0, 1, 105).unsqueeze(1)
+w = torch.linspace(0, 1, 10).unsqueeze(1)
 bs_params = (1 - w) * bs_min + w * bs_max
+bs_params = torch.cartesian_prod(bs_params[:, 0], bs_params[:, 1])
+
 
 cev_min = torch.min(cev_mles, dim=0)[0]
 cev_max = torch.max(cev_mles, dim=0)[0]
-w = torch.linspace(0, 1, 30).unsqueeze(1)
+w = torch.linspace(0, 1, 8).unsqueeze(1)
 cev_params = (1 - w) * cev_min + w * cev_max
-cev_params = torch.cartesian_prod(cev_params[:, 0], cev_params[:, 1])
+cev_params = torch.cartesian_prod(cev_params[:, 0], cev_params[:, 1], cev_params[:, 2])
+
 
 # STEP 2: Compute the likelihood of each parameters
 with torch.no_grad():
     bs_log_l = torch.zeros(size=(len(bs_params), T))
     for i in range(len(bs_params)):
         if i % 20 == 0: print(i)
-        model = Bs(mu, *bs_params[i])
+        model = Bs(*bs_params[i])
         for t in range(window, T):
-            bs_log_l[i, t] = model.forward(S, t, dt, window)
+            bs_log_l[i, t] = model.forward(S, t=t, delta_t=dt, decay_coef=decay_coef, window=window)
+
 
 with torch.no_grad():
     cev_log_l = torch.zeros(size=(len(cev_params), T))
     for i in range(len(cev_params)):
         if i % 20 == 0: print(i)
-        model = Cev(mu, *cev_params[i])
+        model = Cev(*cev_params[i])
         for t in range(window, T):
-            cev_log_l[i, t] = model.forward(S, t, dt, window)
+            cev_log_l[i, t] = model.forward(S, t=t, delta_t=dt, decay_coef=decay_coef, window=window)
+
 
 # Step 3: Select only parameters which where the best of their class at some point
 bs_best_idx = torch.unique(torch.max(bs_log_l[:, window:], dim=0)[1])
@@ -112,12 +115,20 @@ print(len(cev_best_idx))
 
 """
 tmp = torch.max(bs_log_l[:, window:], dim=0)[0] - bs_log_l[:, window:]
-epsilon = 0.1
+epsilon = 0.01
 mask = torch.where(tmp <= epsilon, 1.0, 0.0)
 bs_indices = torch.nonzero(mask.any(dim=1), as_tuple=False).squeeze()
 n_params = len(bs_indices)
 print(n_params)
 """
+
+if len(bs_best_idx) > len(cev_best_idx):
+    bs_best_idx = bs_best_idx[:len(cev_best_idx)]
+elif len(cev_best_idx) > len(bs_best_idx):
+    cev_best_idx = cev_best_idx[:len(bs_best_idx)]
+print(len(bs_best_idx))
+print(len(cev_best_idx))
+
 bs_indices = bs_best_idx
 cev_indices = cev_best_idx
 n_params = len(bs_indices)
@@ -142,7 +153,7 @@ for idx in cev_indices:
     ax.plot(plotting_times, tau * cev_log_l[idx, plotting_index], linewidth=0.8, c='red', alpha=0.3)
 ax.grid()
 ax.legend()
-plt.savefig('figures/en_likelihoods.png')
+plt.savefig('figures/estimate_nothing/en_likelihoods.png')
 
 log_l_normalized = tau * torch.cat([bs_log_l[bs_indices, :], cev_log_l[cev_indices, :]], dim=0)
 log_normalization = torch.logsumexp(log_l_normalized, dim=0)
@@ -163,7 +174,7 @@ for i in range(n_params, 2 * n_params):
     ax.plot(plotting_times, posterior[i, plotting_index], linewidth=0.3, c='red', alpha=0.8)
 ax.grid()
 ax.legend()
-plt.savefig('figures/en_posteriors.png')
+plt.savefig('figures/estimate_nothing/en_posteriors.png')
 
 fig, ax = plt.subplots(figsize=(10, 4))
 custom_grid_dates = dates[[0, *optimization_times]]
@@ -180,4 +191,4 @@ ax.plot(plotting_times, cev_posterior[plotting_index], label='cev', linewidth=0.
 
 ax.grid()
 ax.legend()
-plt.savefig('figures/en_marginal_posteriors.png')
+plt.savefig('figures/estimate_nothing/en_marginal_posteriors.png')

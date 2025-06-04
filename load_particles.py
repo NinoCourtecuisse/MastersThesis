@@ -21,10 +21,10 @@ dates = spot_data.index.to_numpy()
 S = torch.tensor(S, dtype=torch.float32)
 T = len(S)
 
-bs_log_l = torch.load('logs/bs_log_l.pt')
-cev_log_l = torch.load('logs/cev_log_l.pt')
-nig_log_l = torch.load('logs/nig_log_l.pt')
-sv_log_l = torch.load('logs/sv_log_l.pt')
+bs_log_l = torch.load('logs/particles/bs_log_l.pt')
+cev_log_l = torch.load('logs/particles/cev_log_l.pt')
+nig_log_l = torch.load('logs/particles/nig_log_l.pt')
+sv_log_l = torch.load('logs/particles/sv_log_l.pt')
 
 optimization_freq = 20  # days
 window = 200
@@ -78,4 +78,4 @@ ax.set_xlabel('time')
 ax.set_ylabel('posterior probability')
 fig.legend()
 fig.tight_layout()
-plt.show()
+plt.savefig('figures/particles/particles.png')

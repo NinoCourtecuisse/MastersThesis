@@ -15,7 +15,7 @@ from torch.distributions import Uniform
 torch.manual_seed(42)
 
 logging.basicConfig(
-    filename='logs/particles.log',
+    filename='logs/particles/particles.log',
     filemode='w',
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -73,7 +73,7 @@ for i in range(n_particles):
                                                     logging=logging, verbose=False)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
-torch.save(bs_log_l, f='logs/bs_log_l.pt')
+torch.save(bs_log_l, f='logs/particles/bs_log_l.pt')
 
 # CEV particles
 cev_prior = Prior([
@@ -97,7 +97,7 @@ for i in range(n_particles):
                                                     logging=logging, verbose=False)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
-torch.save(cev_log_l, f='logs/cev_log_l.pt')
+torch.save(cev_log_l, f='logs/particles/cev_log_l.pt')
 
 
 # NIG particles
@@ -123,7 +123,7 @@ for i in range(n_particles):
                                                     logging=logging, verbose=False)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
-torch.save(nig_log_l, f='logs/nig_log_l.pt')
+torch.save(nig_log_l, f='logs/particles/nig_log_l.pt')
 
 
 # SV particles
@@ -150,4 +150,4 @@ for i in range(n_particles):
                                                    window, start, logging=logging, verbose=False)
 tac = time()
 logging.info(f'Elapsed time: {tac - tic:.3f}')
-torch.save(sv_log_l, f='logs/sv_log_l.pt')
+torch.save(sv_log_l, f='logs/particles/sv_log_l.pt')
