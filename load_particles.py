@@ -43,9 +43,9 @@ log_posterior = log_l_normalized - log_normalization
 posterior = torch.exp(log_posterior)
 
 fig, ax = plt.subplots(figsize=(10, 4))
-plotting_index = np.array([0, *optimization_times])
-plotting_times = dates[[0, *optimization_times]]
-ax.plot(dates, 0.3 * S / S[0], label='S&P500', linestyle='--', linewidth=0.5)
+plotting_index = np.array([start - optimization_freq, start, *optimization_times])
+plotting_times = dates[[start - optimization_freq, start, *optimization_times]]
+ax.plot(plotting_times, 0.3 * S[plotting_index] / S[0], label='S&P500', linestyle='--', linewidth=0.5)
 
 n_particles = bs_log_l.shape[0]
 for k in range(posterior.shape[0]):
@@ -68,7 +68,7 @@ for k in range(posterior.shape[0]):
 
 ax.xaxis.set_major_locator(mdates.YearLocator())
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-custom_grid_dates = dates[[0, *optimization_times]]
+custom_grid_dates = plotting_times
 
 # Draw vertical grid lines at those custom positions
 for date in custom_grid_dates:
