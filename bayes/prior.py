@@ -1,7 +1,8 @@
 import torch
 from torch.distributions import Distribution
-    
-class Prior:
+from torchkde import KernelDensity
+
+class IndependentPrior:
     def __init__(self, dists: list[Distribution]):
         self.dists = dists
         self.dim = len(dists)
@@ -13,8 +14,8 @@ class Prior:
     def log_prob(self, x: torch.Tensor) -> torch.Tensor:
         log_probs = []
         for i, d in enumerate(self.dists):
-            mask = (x[:, i] > d.low) & (x[:, i] < d.high)
-            lp = torch.full_like(x[:, i], -10**6)
+            mask = d.support.check(x[:, i])         # Check if x is in the support
+            lp = torch.full_like(x[:, i], -10**6)   # If not: set the log_prob to low value
             lp[mask] = d.log_prob(x[:, i][mask])
 
             log_probs.append(lp)
