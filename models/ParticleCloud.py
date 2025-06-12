@@ -89,13 +89,8 @@ class ParticleCloud():
         prior = self.prior.log_prob(grid).reshape(shape = (p, p))
         max = prior.max().item()
         levels = torch.linspace(-10.0, max, 20)
-        #if max < 0:
-        #    fine_levels = torch.linspace(max * 1.2, max, 5)
-        #else:
-        #    fine_levels = torch.linspace(max * 0.9, max, 5)
         contour = ax.contourf(mus, torch.log(sigmas), prior, levels=levels, cmap='viridis', extend='min')
-        fig.colorbar(contour)
-        #ax.contour(mus, torch.log(sigmas), prior, levels=fine_levels, colors='k', linewidths=0.3)
+        fig.colorbar(contour, extend='min')
 
         ax.scatter(particles[:, 0], torch.log(particles[:, 1]), marker = '+', c='red', label='particles')
 
@@ -116,13 +111,8 @@ class ParticleCloud():
         posterior = self.log_posterior(grid, new_data).reshape(shape = (p, p))
         max = posterior.max().item()
         levels = torch.linspace(-10.0, max, 20)
-        #if max < 0:
-        #    fine_levels = torch.linspace(max * 1.2, max, 5)
-        #else:
-        #    fine_levels = torch.linspace(max * 0.98, max, 5)
         contour = ax.contourf(mus, log_sigmas, posterior, levels=levels, cmap='viridis', extend='min')
-        fig.colorbar(contour)
-        #ax.contour(mus, log_sigmas, posterior, levels=fine_levels, colors='k', linewidths=0.3)
+        fig.colorbar(contour, extend='min')
 
         ax.scatter(particles[:, 0], torch.log(particles[:, 1]), marker = '+', c='red')
 
