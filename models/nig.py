@@ -1,59 +1,84 @@
 import torch
-from models.model_class import Model
 from utils.NormalInverseGaussian import NormalInverseGaussian
 from utils.InverseGaussian import InverseGaussian
 
-class Nig(Model):
-    def __init__(self, mu, sigma, xi, eta):
-        params = torch.nn.ParameterDict({
-            'mu': torch.nn.Parameter(mu),
-            'log_sigma': torch.nn.Parameter(torch.log(sigma)),
-            'xi': torch.nn.Parameter(xi),
-            'log_eta': torch.nn.Parameter(torch.log(eta)),
-        })
-        super().__init__(params)
-        self.model_type = 'NIG'
+class Nig():
+    def __init__(self, dt: float):
+        self.dt = dt
 
-    def get_params(self):
-        params = {
-            'mu': self.params["mu"].detach(),
-            'sigma': torch.exp(self.params["log_sigma"].detach()),
-            'xi': self.params["xi"].detach(),
-            'eta': torch.exp(self.params['log_eta'].detach())
-        }
-        return params
+    def reparam(self, params):
+        # Reparametrize: natural -> optimization
+        mu = params[:, 0]
+        log_sigma = torch.log(params[:, 1])
+        xi = params[:, 2]
+        log_eta = torch.log(params[:, 3])
 
-    def _inv_reparam(self):
-        "Inverse reparametrization to the original."
-        mu = self.params["mu"]
-        sigma = torch.exp(self.params["log_sigma"])
-        xi = self.params["xi"]
-        eta = torch.exp(self.params['log_eta'])
-        
+        new_params = torch.stack([mu, log_sigma, xi, log_eta], dim = 1)
+        return new_params
+    
+    def inverse_reparam(self, params):
+        # Reparametrize: optimization -> natural
+        mu = params[:, 0]
+        sigma = torch.exp(params[:, 1])
+        xi = params[:, 2]
+        eta = torch.exp(params[:, 3])
+
+        new_params = torch.stack([mu, sigma, xi, eta], dim = 1)
+        return new_params
+    
+    def reparam_nat_orig(self, params):
+        # Reparametrize: natural -> original
+        mu = params[:, 0]
+        sigma = params[:, 1]
+        xi = params[:, 2]
+        eta = params[:, 3]
+
         sigma_tilde = sigma / torch.sqrt(1 + eta * xi**2)
 
         mu_tilde = -sigma_tilde * xi + mu
         alpha_tilde = torch.sqrt(1/eta + xi**2) / sigma_tilde
         beta_tilde = xi / sigma_tilde
         delta_tilde = sigma_tilde / torch.sqrt(eta)
-        return mu_tilde, alpha_tilde, beta_tilde, delta_tilde
+        original = torch.stack([mu_tilde, alpha_tilde, beta_tilde, delta_tilde], dim = 1)
+        return original
 
-    def get_moments(self):
-        """
-        Return the first two moments of x_t = log(s_t / s_0) at t=1
-        """
-        mu, alpha, beta, delta = self._inv_reparam()
-        gamma = torch.sqrt(alpha**2 - beta**2)
+    def log_transition(self, params, s, s_next):
+        # Expects params in optimization parametrization
+        natural = self.inverse_reparam(params)
+        original = self.reparam_nat_orig(natural)
+        mu = original[:, 0].unsqueeze(1)
+        alpha = original[:, 1].unsqueeze(1)
+        beta = original[:, 2].unsqueeze(1)
+        delta = original[:, 3].unsqueeze(1)
+        dt = self.dt
 
-        mean = mu + delta * beta / gamma
-        var = delta * alpha**2 / gamma**3
-        skew = 3 * beta / (alpha * torch.sqrt(delta * gamma))
-        ekurt = 3 * (1 + 4 * beta**2 / alpha**2) / (delta * gamma)
-        return mean, torch.sqrt(var), skew, ekurt
+        log_return = torch.log(s_next / s)
+        log_transition = NormalInverseGaussian(
+            mu=dt * mu,
+            alpha=alpha,
+            beta=beta,
+            delta=delta * dt
+        ).log_prob(log_return)
+        return torch.relu(log_transition + 15) - 15
 
-    def simulate(self, s0, dt, T, M=1):
+    def ll(self, params: torch.tensor, data: torch.tensor):
+        # Expects params in optimization parametrization
+        s = data[:-1]
+        s_next = data[1:]
+        log_transitions = self.log_transition(params, s, s_next)
+        ll = torch.sum(log_transitions, dim = 1)
+        return ll
+
+    def simulate(self, params, s0, T, M):
+        # Expects params in natural parametrization
         with torch.no_grad():
-            mu, alpha, beta, delta = self._inv_reparam()
+            original = self.reparam_nat_orig(params)
+            dt = self.dt
+            mu = original[:, 0].unsqueeze(1)
+            alpha = original[:, 1].unsqueeze(1)
+            beta = original[:, 2].unsqueeze(1)
+            delta = original[:, 3].unsqueeze(1)
+
             n = int(torch.round(T / dt).item())
 
             # Generate M paths from IG process
@@ -71,21 +96,3 @@ class Nig(Model):
             s = s0 * torch.ones((n, M))
             s[1:, :] = s0 * torch.exp(X)
         return s
-    
-    def log_transition(self, s, s_next, delta_t):
-        mu, alpha, beta, delta = self._inv_reparam()
-
-        log_return = torch.log(s_next / s)
-        log_transition = NormalInverseGaussian(delta_t * mu, alpha, beta, delta * delta_t).log_prob(log_return)
-        return torch.relu(log_transition + 15) - 15     # Clamp the transition at exp(-15)
-    
-    def forward(self, spot_prices, t, delta_t, decay_coef, window=None):
-        if window:
-            start = max(t - window, 0)
-        else:
-            start = 0
-
-        transition_evals = self.log_transition(spot_prices[start:t], spot_prices[start+1:t+1], delta_t)
-        decay = decay_coef**(torch.arange(t - 1, start - 1, -1))
-        log_likelihood = decay.inner(transition_evals)
-        return log_likelihood
