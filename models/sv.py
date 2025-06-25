@@ -1,51 +1,54 @@
-from abc import abstractmethod
-from models.model_class import Model
 import torch
+from utils.priors import IndependentPrior
+from utils.optimization import IndependentTransform
+from utils.special_functions import logit
 
-class Sv(Model):
-    def __init__(self, params, params_names):
-        super().__init__(params, params_names)
-        self.model_type = 'SV'
+from PyMB import PyMB_model, Laplace
 
-    @abstractmethod
-    def variance_path(self, spot_prices, v0, delta_t):
-        pass
+class Sv():
+    def __init__(self, dt: float, prior: IndependentPrior):
+        self.dt = dt
+        self.prior = prior
+        self.transform = IndependentTransform(prior)
 
-    @abstractmethod
-    def forward(self, spot_prices, variance_path, delta_t, window=100):
-        pass
+        self.m = PyMB_model(name='sv')
+        self.m.load_model(so_file='PyMB/likelihoods/tmb_tmp/sv.so')
+        self.m.init['log_sigma_y'] = 0  # Dummy parameters, will not be used
+        self.m.init['log_sigma_h'] = 0
+        self.m.init['logit_phi'] = 3
+        self.m.init['logit_rho'] = 0
+        self.m.init['mu'] = 0
     
-    def likelihood_with_updates(self, v0, optimizer, optimization_times, n_grad_steps, \
-                                spot_prices, dt, window, logging=None, verbose=False):
-        T = len(spot_prices)
-        log_l = torch.zeros(size=(T,))
+    def build_objective(self, data):
+        self.m.data['y'] = data.numpy()
+        self.m.init['h'] = torch.zeros_like(data).numpy()
+        self.m.build_objective_function(random=['h'], silent=True)
+    
+    def transform_tmb(self, natural_params):
+        log_sigma_y = natural_params[:, 0].log()
+        log_sigma_h = natural_params[:, 1].log()
+        logit_phi = logit(natural_params[:, 2])
+        logit_rho = logit(natural_params[:, 3])
+        mu = natural_params[:, 4]
 
-        # Generate a variance path with the init params
-        var_path = self.variance_path(spot_prices[:optimization_times[0]], v0, dt)
-        prev_optimization_time = window
-        for t in range(window, T):
-            if verbose and t % 100 == 0: print(t)
-            
-            if t in optimization_times:
-                for i in range(n_grad_steps):
-                    var_path = self.variance_path(spot_prices[t-window:t+1],
-                                                  v0=var_path[0].detach(), delta_t=dt)
+        tmb_params = torch.stack([log_sigma_y, log_sigma_h, logit_phi, logit_rho, mu], dim=1)
+        return tmb_params
 
-                    optimizer.zero_grad()
-                    loss = - self(spot_prices[t-window:t+1], var_path, dt, window)
-                    loss.backward()
-                    optimizer.step()    # Update params
-                
-                idx = torch.where(optimization_times == t)[0]
-                start = t - window
-                if idx != len(optimization_times) - 1:
-                    stop = optimization_times[idx + 1]
-                else:
-                    stop = T - 1
-                prev_optimization_time = optimization_times[idx]
-                var_path = self.variance_path(spot_prices[start:stop], var_path[start], dt) # Generate new variance path
+    def ll(self, opt_params, data):
+        # Expects params in optimization parametrization
+        natural_params = self.transform.to(opt_params)
+        tmb_params = self.transform_tmb(natural_params)
 
-            with torch.no_grad():
-                log_l[t] = self(spot_prices[t-window:t+1], var_path[t-prev_optimization_time:t-prev_optimization_time+window+1], dt, window)
-        return log_l
+        model = self.m.TMB.model
+        model = dict(zip(model.names(), model))
+        nll = []
+        for i in range(tmb_params.shape[0]):
+            la = Laplace.apply(tmb_params[i, :], model)
+            nll.append(la)
+        nll = torch.stack(nll, dim=0).squeeze()
+        return -nll
 
+    def lpost(self, opt_params, data):
+        llik = self.ll(opt_params, data)
+        lprior = self.prior.log_prob(self.transform.to(opt_params))
+        return llik + lprior

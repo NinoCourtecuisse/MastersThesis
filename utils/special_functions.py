@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch.autograd import Function
 from scipy.special import k0e, k1e
 
@@ -23,3 +24,12 @@ class ScaledBesselK1(Function):
 
 def torch_k1e(x):
     return ScaledBesselK1.apply(x)
+
+def sliding_sum(x: torch.Tensor, w: int) -> torch.Tensor:
+    N = x.shape[0]
+    x_padded = F.pad(x, (w - 1, 0))
+    x_unfold = x_padded.unfold(0, w, 1)
+    return x_unfold.sum(dim=1)
+
+def logit(x):
+    return torch.log((1 + x) / (1 - x))

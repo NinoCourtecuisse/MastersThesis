@@ -1,31 +1,14 @@
 import torch
-from utils.NormalInverseGaussian import NormalInverseGaussian
-from utils.InverseGaussian import InverseGaussian
+from utils.distributions import InverseGaussian, NormalInverseGaussian
+from utils.priors import IndependentPrior
+from utils.optimization import IndependentTransform
 
 class Nig():
-    def __init__(self, dt: float):
+    def __init__(self, dt: float, prior: IndependentPrior):
         self.dt = dt
+        self.prior = prior
+        self.transform = IndependentTransform(prior)
 
-    def reparam(self, params):
-        # Reparametrize: natural -> optimization
-        mu = params[:, 0]
-        log_sigma = torch.log(params[:, 1])
-        xi = params[:, 2]
-        log_eta = torch.log(params[:, 3])
-
-        new_params = torch.stack([mu, log_sigma, xi, log_eta], dim = 1)
-        return new_params
-    
-    def inverse_reparam(self, params):
-        # Reparametrize: optimization -> natural
-        mu = params[:, 0]
-        sigma = torch.exp(params[:, 1])
-        xi = params[:, 2]
-        eta = torch.exp(params[:, 3])
-
-        new_params = torch.stack([mu, sigma, xi, eta], dim = 1)
-        return new_params
-    
     def reparam_nat_orig(self, params):
         # Reparametrize: natural -> original
         mu = params[:, 0]
@@ -42,10 +25,10 @@ class Nig():
         original = torch.stack([mu_tilde, alpha_tilde, beta_tilde, delta_tilde], dim = 1)
         return original
 
-    def log_transition(self, params, s, s_next):
+    def log_transition(self, opt_params, s, s_next):
         # Expects params in optimization parametrization
-        natural = self.inverse_reparam(params)
-        original = self.reparam_nat_orig(natural)
+        params = self.transform.to(opt_params)
+        original = self.reparam_nat_orig(params)
         mu = original[:, 0].unsqueeze(1)
         alpha = original[:, 1].unsqueeze(1)
         beta = original[:, 2].unsqueeze(1)
@@ -59,15 +42,20 @@ class Nig():
             beta=beta,
             delta=delta * dt
         ).log_prob(log_return)
-        return torch.relu(log_transition + 15) - 15
+        return log_transition
 
-    def ll(self, params: torch.tensor, data: torch.tensor):
+    def ll(self, opt_params, data):
         # Expects params in optimization parametrization
         s = data[:-1]
         s_next = data[1:]
-        log_transitions = self.log_transition(params, s, s_next)
+        log_transitions = self.log_transition(opt_params, s, s_next)
         ll = torch.sum(log_transitions, dim = 1)
         return ll
+
+    def lpost(self, opt_params, data):
+        llik = self.ll(opt_params, data)
+        lprior = self.prior.log_prob(self.transform.to(opt_params))
+        return llik + lprior
 
     def simulate(self, params, s0, T, M):
         # Expects params in natural parametrization

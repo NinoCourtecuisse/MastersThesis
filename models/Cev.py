@@ -1,56 +1,48 @@
 import torch
-from torch.distributions import Normal
+from torch import distributions as D
+from utils.priors import IndependentPrior
+from utils.optimization import IndependentTransform
 
 class Cev():
-    def __init__(self, dt: float):
+    def __init__(self, dt: float, prior: IndependentPrior):
         self.dt = dt
+        self.prior = prior
+        self.transform = IndependentTransform(prior)
 
-    def reparam(self, params):
-        mu = params[:, 0]
-        delta = params[:, 1]
-        beta = params[:, 2]
-        log_delta = torch.log(delta)
-        log_beta = torch.log(beta)
-        new_params = torch.stack([mu, log_delta, log_beta], dim = 1)
-        return new_params
-
-    def inverse_reparam(self, params):
-        mu = params[:, 0]
-        delta = torch.exp(params[:, 1])
-        beta = torch.exp(params[:, 2])
-        new_params = torch.stack([mu, delta, beta], dim = 1)
-        return new_params
-
-    def log_transition(self, params, s, s_next):
+    def log_transition(self, opt_params, s, s_next):
         # Expects params in optimization parametrization
-        reparams = self.inverse_reparam(params)
-        mu = reparams[:, 0].unsqueeze(1)
-        delta = reparams[:, 1].unsqueeze(1)
-        beta = reparams[:, 2].unsqueeze(1)
-
+        params = self.transform.to(opt_params)
+        mu = params[:, 0].unsqueeze(1)
+        delta = params[:, 1].unsqueeze(1)
+        beta = params[:, 2].unsqueeze(1)
         dt = self.dt
 
-        C = torch.tensor(10.0)
-        tmp1 = C**2 * torch.exp((beta - 2) * mu * dt) * torch.ones(size=(len(mu), len(s)))
-        tmp2 = s[None, :]**(beta - 2)
-        local_var = delta**2 * torch.minimum(tmp1, tmp2)
+        #C = torch.tensor(10.0)
+        #tmp1 = C**2 * torch.exp((beta - 2) * mu * dt) * torch.ones(size=(len(mu), len(s)))
+        #tmp2 = s[None, :]**(beta - 2)
+        #local_var = delta**2 * torch.minimum(tmp1, tmp2)
+        local_var = delta**2 * s[None, :]**(beta - 2)
 
         mean = torch.log(s) + (mu - 0.5 * local_var) * dt
         var = local_var * dt
-        log_transition = Normal(
+        log_transition = D.Normal(
             loc=mean,
             scale=torch.sqrt(var)
         ).log_prob(torch.log(s_next))
+        return log_transition
 
-        return torch.relu(log_transition + 15) - 15
-
-    def ll(self, params: torch.tensor, data: torch.tensor):
+    def ll(self, opt_params, data):
         # Expects params in optimization parametrization
         s = data[:-1]
         s_next = data[1:]
-        log_transitions = self.log_transition(params, s, s_next)
+        log_transitions = self.log_transition(opt_params, s, s_next)
         ll = torch.sum(log_transitions, dim = 1)
         return ll
+
+    def lpost(self, opt_params, data):
+        llik = self.ll(opt_params, data)
+        lprior = self.prior.log_prob(self.transform.to(opt_params))
+        return llik + lprior
 
     def simulate(self, params, s0, T, M):
         # Expects params in natural parametrization
@@ -63,7 +55,7 @@ class Cev():
             n = int(torch.round(T / dt).item())
             s = torch.zeros((n + 1, M))
             s[0, :] = s0
-            Z = Normal(loc=0, scale=1).sample(sample_shape=torch.Size((n, M)))
+            Z = D.Normal(loc=0, scale=1).sample(sample_shape=torch.Size((n, M)))
             for i in range(1, n + 1):
                 s[i, :] = s[i-1, :] + s[i-1, :] * mu * dt + \
                     delta * (s[i-1, :] ** (beta / 2)) * Z[i-1, :] * torch.sqrt(dt)

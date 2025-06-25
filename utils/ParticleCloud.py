@@ -1,8 +1,8 @@
 import torch
 from torch.optim import Adam
 import matplotlib.pyplot as plt
-from utils.svgd import compute_phi
-from utils.Prior import KdePrior
+from inference import compute_phi
+from utils.priors import KdePrior
 
 class ParticleCloud():
     def __init__(self, model, init_prior,
@@ -127,8 +127,8 @@ class ParticleCloud():
 
         fig, ax = plt.subplots(figsize=(5, 3))
         p = 50
-        logdeltas = torch.log(torch.linspace(0.1, 10.0, p))
-        logbetas = torch.log(torch.linspace(0.1, 3.0, p))
+        logdeltas = torch.log(torch.linspace(0.01, 50.0, p))
+        logbetas = torch.log(torch.linspace(0.0001, 3.0, p))
         logdeltas, logbetas = torch.meshgrid(logdeltas, logbetas, indexing='ij')
         grid = torch.stack([mu*torch.ones_like(logdeltas.reshape(-1)), logdeltas.reshape(-1), logbetas.reshape(-1)], dim=1)
 

@@ -9,7 +9,10 @@ class IndependentPrior:
 
     def sample(self, n_samples: int = 1) -> torch.Tensor:
         samples = [dist.sample((n_samples,)) for dist in self.dists]
-        return torch.stack(samples, dim=-1).squeeze()
+        samples = torch.stack(samples, dim=-1)
+        if n_samples == 1:
+            return samples
+        return samples.squeeze()
 
     def log_prob(self, x: torch.Tensor) -> torch.Tensor:
         log_probs = []
@@ -18,7 +21,7 @@ class IndependentPrior:
                 mask = (x[:, i] >= d.low) & (x[:, i] < d.high)
             else:
                 mask = d.support.check(x[:, i])         # Check if x is in the support
-            lp = torch.full_like(x[:, i], -10**9)   # If not: set the log_prob to low value
+            lp = torch.full_like(x[:, i], -10**9)       # If not: set the log_prob to low value
             lp[mask] = d.log_prob(x[:, i][mask])
 
             log_probs.append(lp)
