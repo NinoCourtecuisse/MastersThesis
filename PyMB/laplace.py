@@ -24,5 +24,5 @@ class Laplace(torch.autograd.Function):
         with localconverter(ro.default_converter + numpy2ri.converter):
             grad_par_np = tmb_model['gr'](par_np)
 
-        grad_par = torch.from_numpy(np.array(grad_par_np)).to(par)
+        grad_par = torch.from_numpy(np.array(grad_par_np).reshape(par_np.shape)).to(par)
         return grad_output * grad_par, None

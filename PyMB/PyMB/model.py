@@ -439,6 +439,12 @@ class model:
         '''
         return np.array(get_R_attr_from_NamedList(get_R_attr_from_NamedList(self.TMB.model, 'report')(), name))
 
+    def get_report(self):
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            report = self.TMB.sdreport(self.TMB.model)
+        report = dict(zip(report.names(), report))
+        return report
+
     def simulate_parameters(self, draws=100, params=[], quiet=False, constrain=False):
         '''
         Simulate draws from the posterior variance/covariance matrix of the fixed and random effects

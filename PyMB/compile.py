@@ -15,4 +15,5 @@ def compile(name):
                 output_dir='PyMB/likelihoods/tmb_tmp',
                 use_R_compiler=True)
 
-compile('sv')
+#compile('sv')
+compile('sv_vec')
