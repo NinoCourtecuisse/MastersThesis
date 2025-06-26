@@ -31,3 +31,13 @@ See for example the Black-Scholes model implementation at [`./models/bs_class.py
 
 Currently the following models are implemented:
 - Black-Scholes, Constant Elasticity of Variance, Stochastic Volatility, Normal Inverse-Gaussian
+
+## Run scripts
+All the scripts can be found in [`./experiments/scripts`](./experiments/scripts) and can be run by executing
+```
+./run.sh experiments/scripts/[name-of-the-file].py [arguments of needed]
+```
+For example, to reproduce the results of MLE on Black-Scholes the following command is used
+```
+./run.sh experiments/scripts/mle.py --model bs --seed 42 --verbose
+```
