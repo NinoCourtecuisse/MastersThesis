@@ -58,5 +58,5 @@ class Cev():
             Z = D.Normal(loc=0, scale=1).sample(sample_shape=torch.Size((n, M)))
             for i in range(1, n + 1):
                 s[i, :] = s[i-1, :] + s[i-1, :] * mu * dt + \
-                    delta * (s[i-1, :] ** (beta / 2)) * Z[i-1, :] * torch.sqrt(dt)
+                    delta * (s[i-1, :] ** (beta / 2)) * Z[i-1, :] * dt**0.5
         return s

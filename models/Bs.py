@@ -48,7 +48,7 @@ class Bs():
             s = torch.zeros((n + 1, M))
             s[0, :] = s0
             Z = D.Normal(loc=0, scale=1).sample(sample_shape=torch.Size((n, M)))
-            log_increments = (mu - 0.5 * sigma**2) * dt + sigma * torch.sqrt(dt) * Z
+            log_increments = (mu - 0.5 * sigma**2) * dt + sigma * dt**0.5 * Z
             log_price = torch.log(s0) + torch.cumsum(log_increments, dim=0)
             s[1:, :] = torch.exp(log_price)
         return s
