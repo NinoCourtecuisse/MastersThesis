@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from utils.data import load_data
 from utils.priors import IndependentPrior
 
-from models import Bs, Cev, Nig, Sv
+from models import Bs, Cev, Nig, Sv, Sabr
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ def mle(model, params_init, data, lr, start, stop,
     for t in range(start, stop):
         if verbose: print(f'Day {t} / {stop-1}')
         current_data = data[t-window:t]
-        if isinstance(model, Sv):
+        if isinstance(model, Sv) or isinstance(model, Sabr):
             model.build_objective(current_data)
 
         if t in optimization_times:
@@ -90,6 +90,15 @@ def main(args):
     sv_model = Sv(dt, prior)
     sv_init = torch.tensor([[0.01, 0.25, 0.95, -0.7, 0.0]])
 
+    prior = IndependentPrior([
+        D.Normal(0., 1.),       # mu, beta, sigma, rho
+        D.LogNormal(0., 1.),
+        D.LogNormal(0., 1.),
+        D.Uniform(-1., 1.)
+    ])
+    sabr_model = Sabr(dt, prior)
+    sabr_init = torch.tensor([[0.0, 1.0, 0.2, -0.5]])
+
     ######## MLE ########
 
     bs_ll = mle(bs_model, bs_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window,
@@ -100,6 +109,8 @@ def main(args):
                 verbose=args.verbose)
     sv_ll = mle(sv_model, sv_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window,
                 verbose=args.verbose)
+    sabr_ll = mle(sabr_model, sabr_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window,
+                verbose=args.verbose)
 
     fig, ax = plt.subplots(figsize=(10, 4))
     tau = 0.01
@@ -108,10 +119,11 @@ def main(args):
     ax.plot(dates[start-1:stop], tau * cev_ll, label='cev', linewidth=0.8)
     ax.plot(dates[start-1:stop], tau * nig_ll, label='nig', linewidth=0.8)
     ax.plot(dates[start-1:stop], tau * sv_ll, label='sv', linewidth=0.8)
+    ax.plot(dates[start-1:stop], tau * sabr_ll, label='sabr', linewidth=0.8)
     ax.legend()
     plt.show()
 
-    all_ll = torch.stack([bs_ll, cev_ll, nig_ll, sv_ll], dim=0)
+    all_ll = torch.stack([bs_ll, cev_ll, nig_ll, sv_ll, sabr_ll], dim=0)
     log_l_normalized = tau * all_ll
     log_normalization = torch.logsumexp(log_l_normalized, dim=0)
     log_posterior = log_l_normalized - log_normalization
@@ -123,6 +135,7 @@ def main(args):
     ax.plot(dates[start-1:stop], posterior[1, :], label='cev', linewidth=0.8)
     ax.plot(dates[start-1:stop], posterior[2, :], label='nig', linewidth=0.8)
     ax.plot(dates[start-1:stop], posterior[3, :], label='sv', linewidth=0.8)
+    ax.plot(dates[start-1:stop], posterior[4, :], label='sabr', linewidth=0.8)
     ax.grid()
     ax.legend()
     plt.show()

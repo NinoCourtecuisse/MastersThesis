@@ -8,10 +8,9 @@ import matplotlib.pyplot as plt
 from utils.data import load_data
 from utils.priors import IndependentPrior
 
-from models import Sv
-
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, choices=['sv', 'sabr'])
     parser.add_argument('--verbose', action='store_true', default=False)
     return parser.parse_args()
 
@@ -24,24 +23,37 @@ def main(args):
     dt = 1 / 252
 
     ######## Instantiate the model ########
-    prior = IndependentPrior([
-        D.LogNormal(0., 1.),
-        D.LogNormal(0., 1.),
-        D.Uniform(-1., 1.),
-        D.Uniform(-1., 1.),
-        D.Normal(0., 1.)
-    ])
-    sv_model = Sv(dt, prior)
+    match args.model:
+        case 'sv':
+            from models import Sv as Model
+            prior = IndependentPrior([
+                D.LogNormal(0., 1.),    # sigma_y, sigma_h, phi, rho, mu
+                D.LogNormal(0., 1.),
+                D.Uniform(-1., 1.),
+                D.Uniform(-1., 1.),
+                D.Normal(0., 1.)
+            ])
+            params_init = torch.tensor([[0.01, 0.25, 0.95, -0.7, 0.0]])
+        case 'sabr':
+            from models import Sabr as Model
+            prior = IndependentPrior([
+                D.Normal(0., 1.),       # mu, beta, sigma, rho
+                D.LogNormal(0., 1.),
+                D.LogNormal(0., 1.),
+                D.Uniform(-1., 1.)
+            ])
+            params_init = torch.tensor([[0.0, 1.0, 0.2, -0.5]])
 
-    sv_model.build_objective(data=S)
-    params_init = torch.tensor([[0.01, 0.25, 0.95, -0.7, 0.0]])
+    model = Model(dt, prior)
+    model.build_objective(data=S)
 
-    params = sv_model.transform.inv(params_init).requires_grad_(True)
+    ######## MLE and retrieve the latent ########
+    params = model.transform.inv(params_init).requires_grad_(True)
     optimizer = Adam([params], lr=0.01)
-    n_iter = 300
+    n_iter = 500
     for i in range(n_iter):
         optimizer.zero_grad()
-        loss = - sv_model.ll(params, data=S)
+        loss = - model.ll(params, data=S)
         loss.backward()
 
         if args.verbose:
@@ -49,20 +61,30 @@ def main(args):
             print(f"Iteration {i} / {n_iter}: grad norm={grad_norm.item():.3f}")
         optimizer.step()
 
-    final_params = sv_model.transform.to(params.detach())
-    sigma_y = final_params[0, 0]
-
-    h, std = sv_model.get_latent(with_std=True)
+    final_params = model.transform.to(params.detach())
+    h, std = model.get_latent(with_std=True)
     h_upper = h + 2 * std
     h_lower = h - 2 * std
 
-    vol = sigma_y * torch.exp(h / 2) * torch.tensor(252).sqrt()
-    vol_upper = sigma_y * torch.exp(h_upper / 2) * torch.tensor(252).sqrt()
-    vol_lower = sigma_y * torch.exp(h_lower / 2) * torch.tensor(252).sqrt()
+    match args.model:
+        case 'sv':
+            sigma_y = final_params[0, 0]
+            var = sigma_y**2 * torch.exp(h)
+            var_upper = sigma_y**2 * torch.exp(h_upper)
+            var_lower = sigma_y**2 * torch.exp(h_lower)
+        case 'sabr':
+            beta = final_params[0, 1]
+            var = model.local_var(S, h, beta)
+            var_upper = model.local_var(S, h_upper, beta)
+            var_lower = model.local_var(S, h_lower, beta)
+
+    vol = torch.sqrt(var) * torch.tensor(252).sqrt()
+    vol_upper = torch.sqrt(var_upper) * torch.tensor(252).sqrt()
+    vol_lower = torch.sqrt(var_lower) * torch.tensor(252).sqrt()
 
     plt.figure(figsize=(10, 3))
-    plt.plot(dates[:-1], vol, c='black', linewidth=0.8)
-    plt.fill_between(dates[:-1], vol_lower, vol_upper, color='grey', alpha=0.3, label=r'$\pm 2$ std')
+    plt.plot(dates[:len(vol)], vol, c='black', linewidth=0.8)
+    plt.fill_between(dates[:len(vol)], vol_lower, vol_upper, color='grey', alpha=0.3, label=r'$\pm 2$ std')
     plt.legend()
     plt.grid(True)
     plt.show()
