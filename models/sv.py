@@ -55,10 +55,13 @@ class Sv():
         tmb_params = torch.stack([log_sigma_y, log_sigma_h, logit_phi, logit_rho, mu], dim=1)
         return tmb_params
 
-    def get_latent(self):
-        report = self.m.get_report()
-        log_h = torch.tensor(report["par.random"])
-        return log_h.exp()
+    def get_latent(self, with_std=False):
+        report = torch.tensor(self.m.get_report())
+        h = report[:, 0]
+        std = report[:, 1]
+        if with_std:
+            return h, std
+        return h
 
     def sum_ll(self, opt_params, data):
         # Expects params in optimization parametrization

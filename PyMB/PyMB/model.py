@@ -442,8 +442,8 @@ class model:
     def get_report(self):
         with localconverter(ro.default_converter + numpy2ri.converter):
             report = self.TMB.sdreport(self.TMB.model)
-        report = dict(zip(report.names(), report))
-        return report
+            report_with_std = self.TMB.summary_sdreport(report, select = np.array(["random"]))
+        return report_with_std
 
     def simulate_parameters(self, draws=100, params=[], quiet=False, constrain=False):
         '''
