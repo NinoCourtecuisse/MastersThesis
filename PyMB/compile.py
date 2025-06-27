@@ -1,3 +1,5 @@
+import argparse
+
 from PyMB.model import check_R_TMB
 from PyMB.model import model as PyMB_model
 
@@ -6,14 +8,20 @@ Script to compile TMB custom models.
 See https://github.com/kaskr/adcomp/wiki/Tutorial#writing-the-c-function for a tutorial.
 """
 
-def compile(name):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file_name', type=str, help='name of the .cpp file to compile, containing the model likelihood.')
+    return parser.parse_args()
+
+def compile(file_name):
     check_R_TMB()
 
-    m = PyMB_model(name=name)
-    filepath = f'PyMB/likelihoods/{name}.cpp'
+    m = PyMB_model(name=file_name)
+    filepath = f'PyMB/likelihoods/{file_name}.cpp'
     m.compile(filepath=filepath,
                 output_dir='PyMB/likelihoods/tmb_tmp',
                 use_R_compiler=True)
 
-#compile('sv')
-compile('sv_vec')
+if __name__ == "__main__":
+    args = parse_args()
+    compile(args.file_name)
