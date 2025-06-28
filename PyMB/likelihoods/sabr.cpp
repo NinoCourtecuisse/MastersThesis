@@ -17,6 +17,7 @@ Type local_var(Type x, Type h, Type beta){
 template<class Type> 
 Type objective_function<Type>::operator() ()
 {
+    DATA_SCALAR(dt);
     DATA_VECTOR(X);
 
     PARAMETER(mu);
@@ -25,11 +26,12 @@ Type objective_function<Type>::operator() ()
     PARAMETER(logit_rho);
     PARAMETER_VECTOR(h); // Latent process 
 
+    Type mu_ = mu * dt;
     Type beta = exp(log_beta);
-    Type sigma = exp(log_sigma);
+    Type sigma = exp(log_sigma) * sqrt(dt);
     Type rho = f(logit_rho);
 
-    ADREPORT(mu);
+    ADREPORT(mu_);
     ADREPORT(beta);
     ADREPORT(sigma);
     ADREPORT(rho);
@@ -48,8 +50,8 @@ Type objective_function<Type>::operator() ()
     // Contribution from observations
     for (int i = 0; i < N - 1; i++) {
         Type eta = (h(i + 1) - h(i) - Type(0.5) * sigma * sigma) / sigma;
-        Type var = local_var(X(i), h(i), beta);
-        nll -= dnorm(X(i + 1), X(i) + mu - Type(0.5) * var + sqrt(var) * rho * eta,
+        Type var = local_var(X(i), h(i), beta) * dt;
+        nll -= dnorm(X(i + 1), X(i) + mu_ - Type(0.5) * var + sqrt(var) * rho * eta,
                         sqrt(var) * sqrt(Type(1) - rho * rho), true);
     }
 

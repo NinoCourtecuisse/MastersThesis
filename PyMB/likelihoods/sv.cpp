@@ -11,26 +11,27 @@ Type f(Type x){
 template<class Type> 
 Type objective_function<Type>::operator() ()
 {
+  DATA_SCALAR(dt);
   DATA_VECTOR(y);
 
+  PARAMETER(mu);
   PARAMETER(log_sigma_y);
   PARAMETER(log_sigma_h);
   PARAMETER(logit_phi);
-  PARAMETER_VECTOR(logit_rho);
-  PARAMETER_VECTOR(mu);
+  PARAMETER(logit_rho);
   PARAMETER_VECTOR(h); // Latent process 
-  
-  Type sigma_y = exp(log_sigma_y);
-  Type sigma_h = exp(log_sigma_h);
-  Type phi = f(logit_phi);
-  Type rho = f(logit_rho(0));
-  Type mu_ = mu(0);
 
+  Type mu_ = mu * dt;
+  Type sigma_y = exp(log_sigma_y) * sqrt(dt);
+  Type sigma_h = exp(log_sigma_h) * sqrt(dt);
+  Type phi = f(logit_phi);
+  Type rho = f(logit_rho);
+
+  ADREPORT(mu_);
   ADREPORT(sigma_y);
   ADREPORT(sigma_h);
   ADREPORT(phi);
   ADREPORT(rho);
-  ADREPORT(mu_);
 
   // Negative log likelihood
   Type nll = 0;

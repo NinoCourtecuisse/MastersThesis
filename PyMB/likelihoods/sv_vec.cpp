@@ -14,6 +14,7 @@ vector<Type> f(vector<Type> x){
 template<class Type>
 Type objective_function<Type>::operator() ()
 {
+    DATA_SCALAR(dt);
     DATA_INTEGER(N);
     DATA_INTEGER(P);
     DATA_ARRAY(y);                 // (n_particles, n)
@@ -25,16 +26,17 @@ Type objective_function<Type>::operator() ()
     PARAMETER_VECTOR(mu);
     PARAMETER_ARRAY(h);            // Latent process: (n_particles, n)
 
-    vector<Type> sigma_y = exp(log_sigma_y);
-    vector<Type> sigma_h = exp(log_sigma_h);
+    vector<Type> mu_ = mu * dt;
+    vector<Type> sigma_y = exp(log_sigma_y) * sqrt(dt);
+    vector<Type> sigma_h = exp(log_sigma_h) * sqrt(dt);
     vector<Type> phi = f(logit_phi);
     vector<Type> rho = f(logit_rho);
 
+    ADREPORT(mu);
     ADREPORT(sigma_y);
     ADREPORT(sigma_h);
     ADREPORT(phi);
     ADREPORT(rho);
-    ADREPORT(mu);
 
     // Sum of negative log likelihoods for each particle
     Type nll = 0;

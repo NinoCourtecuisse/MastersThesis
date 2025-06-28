@@ -21,11 +21,13 @@ class Sabr():
         self.m.init['log_sigma'] = 0.0
         self.m.init['logit_rho'] = 0.0
 
+        self.m.data['dt'] = self.dt
         self.m.data['X'] = data.log().numpy()
         self.m.init['h'] = torch.zeros_like(data).numpy()
         self.m.build_objective_function(random=['h'], silent=True)
     
     def transform_tmb(self, natural_params):
+        # Natural params: mu, beta, sigma, rho (annualized)
         mu = natural_params[:, 0]
         log_beta = natural_params[:, 1].log()
         log_sigma = natural_params[:, 2].log()
