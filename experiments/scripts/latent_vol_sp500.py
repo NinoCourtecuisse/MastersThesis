@@ -27,29 +27,29 @@ def main(args):
         case 'sv':
             from models import Sv as Model
             prior = IndependentPrior([
-                D.LogNormal(0., 1.),    # sigma_y, sigma_h, phi, rho, mu
+                D.Uniform(-0.1, 0.1),   # mu, sigma_y, sigma_h, phi, rho
+                D.LogNormal(0., 1.),
                 D.LogNormal(0., 1.),
                 D.Uniform(-1., 1.),
-                D.Uniform(-1., 1.),
-                D.Normal(0., 1.)
+                D.Uniform(-1., 1.)
             ])
-            params_init = torch.tensor([[0.01, 0.25, 0.95, -0.7, 0.0]])
+            params_init = torch.tensor([[0.0, 0.2, 1.0, 0.0, 0.0]])
         case 'sabr':
             from models import Sabr as Model
             prior = IndependentPrior([
-                D.Normal(0., 1.),       # mu, beta, sigma, rho
+                D.Uniform(-1e-2, 1e-2),       # mu, beta, sigma, rho
                 D.LogNormal(0., 1.),
                 D.LogNormal(0., 1.),
                 D.Uniform(-1., 1.)
             ])
-            params_init = torch.tensor([[0.0, 1.0, 0.2, -0.5]])
+            params_init = torch.tensor([[0.0, 1.0, 0.2, 0.0]])
 
     model = Model(dt, prior)
     model.build_objective(data=S)
 
     ######## MLE and retrieve the latent ########
     params = model.transform.inv(params_init).requires_grad_(True)
-    optimizer = Adam([params], lr=0.01)
+    optimizer = Adam([params], lr=0.1)
     n_iter = 500
     for i in range(n_iter):
         optimizer.zero_grad()
@@ -68,7 +68,7 @@ def main(args):
 
     match args.model:
         case 'sv':
-            sigma_y = final_params[0, 0]
+            sigma_y = final_params[0, 1]
             var = sigma_y**2 * torch.exp(h)
             var_upper = sigma_y**2 * torch.exp(h_upper)
             var_lower = sigma_y**2 * torch.exp(h_lower)
@@ -77,11 +77,10 @@ def main(args):
             var = model.local_var(S, h, beta)
             var_upper = model.local_var(S, h_upper, beta)
             var_lower = model.local_var(S, h_lower, beta)
-
-    vol = torch.sqrt(var) * torch.tensor(252).sqrt()
-    vol_upper = torch.sqrt(var_upper) * torch.tensor(252).sqrt()
-    vol_lower = torch.sqrt(var_lower) * torch.tensor(252).sqrt()
-
+    print(final_params)
+    vol = torch.sqrt(var)
+    vol_upper = torch.sqrt(var_upper)
+    vol_lower = torch.sqrt(var_lower)
     plt.figure(figsize=(10, 3))
     plt.plot(dates[:len(vol)], vol, c='black', linewidth=0.8)
     plt.fill_between(dates[:len(vol)], vol_lower, vol_upper, color='grey', alpha=0.3, label=r'$\pm 2$ std')

@@ -47,14 +47,14 @@ def main(args):
         case 'sv':
             from models import Sv as Model
             params_true = torch.tensor([
-                [0.01, 0.25, 0.9, -0.5, 0.001] # sigma_y, sigma_h, phi, rho, mu
+                [0.0, 0.1, 4.0, 0.9, -0.5] # mu, sigma_y, sigma_h, phi, rho
             ])
             prior = IndependentPrior([
+                D.Uniform(low=-0.2, high=0.2),
                 D.Uniform(low=1e-4, high=1.0),
-                D.Uniform(low=1e-4, high=1.0),
+                D.Uniform(low=0.1, high=10.0),
                 D.Uniform(low=-0.99, high=0.99),
-                D.Uniform(low=-0.99, high=0.0),
-                D.Uniform(low=0.0001, high=0.01)
+                D.Uniform(low=-0.99, high=0.0)
             ])
         case _:
             return NotImplementedError(f'Model {args.model} is currently not implemented.')

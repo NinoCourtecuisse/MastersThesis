@@ -81,14 +81,14 @@ def main(args):
     nig_init = torch.tensor([[0.01, 0.2, -1.0, 0.01]])
 
     prior = IndependentPrior([
+        D.Normal(0., 1.),
         D.LogNormal(0., 1.),
         D.LogNormal(0., 1.),
         D.Uniform(-1., 1.),
-        D.Uniform(-1., 1.),
-        D.Normal(0., 1.)
+        D.Uniform(-1., 1.)
     ])
     sv_model = Sv(dt, prior)
-    sv_init = torch.tensor([[0.01, 0.25, 0.95, -0.7, 0.0]])
+    sv_init = torch.tensor([[0.0, 0.15, 4.0, 0.95, -0.7]])
 
     prior = IndependentPrior([
         D.Normal(0., 1.),       # mu, beta, sigma, rho
