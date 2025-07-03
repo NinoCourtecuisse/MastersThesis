@@ -11,6 +11,7 @@ from utils.priors import IndependentPrior
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['sv', 'sabr'])
+    parser.add_argument('--save', type=str, help='Path to save the plot.')
     parser.add_argument('--verbose', action='store_true', default=False)
     return parser.parse_args()
 
@@ -77,7 +78,7 @@ def main(args):
             var = model.local_var(S, h, beta)
             var_upper = model.local_var(S, h_upper, beta)
             var_lower = model.local_var(S, h_lower, beta)
-    print(final_params)
+
     vol = torch.sqrt(var)
     vol_upper = torch.sqrt(var_upper)
     vol_lower = torch.sqrt(var_lower)
@@ -86,7 +87,11 @@ def main(args):
     plt.fill_between(dates[:len(vol)], vol_lower, vol_upper, color='grey', alpha=0.3, label=r'$\pm 2$ std')
     plt.legend()
     plt.grid(True)
-    plt.show()
+
+    if args.save:
+        plt.savefig(args.save, bbox_inches='tight')
+    else:
+        plt.show()
 
 if __name__ == '__main__':
     args = parse_args()
