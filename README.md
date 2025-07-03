@@ -1,5 +1,4 @@
 # MastersThesis
-
 ## Setup
 
 For stochastic volatility models, we use Template Model Builder (TMB, https://github.com/kaskr/adcomp). You need:   
@@ -26,11 +25,15 @@ assert check_R_TMB()
 ## Run scripts
 All the scripts can be found in [`./experiments/scripts`](./experiments/scripts) and can be run by executing
 ```
-./run.sh experiments/scripts/[name-of-the-file].py [arguments of needed]
+./run.sh experiments/scripts/[name-of-the-file].py [arguments if needed]
 ```
-For example, to reproduce the results of MLE on Black-Scholes the following command is used
+To first check which arguments are required, run
 ```
-./run.sh experiments/scripts/mle.py --model bs --seed 42 --verbose
+./run.sh experiments/scripts/[name-of-the-file].py --help
+```
+For example, to reproduce the results of MLE on Black-Scholes artifical paths, the following command is used
+```
+./run.sh experiments/scripts/mle_artificial.py --model bs --seed 42 --verbose
 ```
 
 ## Models

@@ -11,3 +11,4 @@ PyMB/likelihoods/tmb_tmp/*
 experiments/figures/*
 experiments/logs/*
 todo.txt
+experiments/garbage/*
