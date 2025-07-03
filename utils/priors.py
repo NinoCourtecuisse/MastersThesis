@@ -27,6 +27,40 @@ class IndependentPrior:
             log_probs.append(lp)
         return torch.stack(log_probs, dim=-1).sum(dim=-1)
 
+class CevPrior:
+    def __init__(self, mu_dist, beta_dist, delta_given_beta_fn=None, v=0.2, S=1000):
+        self.mu_dist = mu_dist
+        self.beta_dist = beta_dist
+        self.a = torch.tensor(v * S).log()
+        self.b = -torch.tensor(S).log()/2
+
+        if delta_given_beta_fn is None:
+            self.delta_given_beta_fn = self._default_delta_given_beta
+        else:
+            self.delta_given_beta_fn = delta_given_beta_fn
+
+    def _default_delta_given_beta(self, beta):
+        loc = self.a + self.b * beta
+        return D.LogNormal(loc, 0.5)
+
+    def sample(self, n_samples=1):
+        mu = self.mu_dist.sample((n_samples,))
+        beta = self.beta_dist.sample((n_samples,))
+        delta = self.delta_given_beta_fn(beta).sample()
+        samples = torch.stack([mu, delta, beta], dim=-1)
+        if n_samples == 1:
+            return samples
+        return samples.squeeze()
+
+    def log_prob(self, x):
+        mu, delta, beta = x[:, 0], x[:, 1], x[:, 2]
+
+        logp_mu = self.mu_dist.log_prob(mu)
+        logp_beta = self.beta_dist.log_prob(beta)
+        logp_delta_given_beta = self.delta_given_beta_fn(beta).log_prob(delta)
+
+        return logp_mu + logp_delta_given_beta + logp_beta
+
 class KdePrior(KernelDensity):
     def __init__(self, particles, bandwidth):
         super().__init__(kernel='gaussian', bandwidth=bandwidth)

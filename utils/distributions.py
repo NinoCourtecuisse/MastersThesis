@@ -74,7 +74,7 @@ class ScaledBeta(D.Distribution):
     def log_prob(self, x):
         u = (x - self.low) / (self.high - self.low)
         # Clamp to avoid numerical issues if exactly on boundaries
-        u = u.clamp(1e-6, 1.0 - 1e-6)
+        u = u.clamp(1e-10, 1.0 - 1e-10)
         return self.beta_dist.log_prob(u) - torch.log(self.high - self.low)
 
     @property
