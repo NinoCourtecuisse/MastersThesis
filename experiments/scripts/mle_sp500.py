@@ -6,7 +6,8 @@ from torch.optim import Adam
 import matplotlib.pyplot as plt
 
 from utils.data import load_data
-from utils.priors import IndependentPrior
+from utils.priors import IndependentPrior, CevPrior, NigPrior
+from utils.distributions import ScaledBeta
 
 from models import Bs, Cev, Nig, Sv, Sabr
 
@@ -63,22 +64,26 @@ def main(args):
     bs_model = Bs(dt, prior)
     bs_init = torch.tensor([[0.01, 0.2]])   # mu, sigma
 
-    prior = IndependentPrior([
-        D.Normal(0., 1.),
-        D.LogNormal(0., 1.),
-        D.Uniform(0., 2.5)
-    ])
+    #prior = IndependentPrior([
+    #    D.Normal(0., 1.),
+    #    D.LogNormal(0., 1.),
+    #    #D.Uniform(0., 2.5)
+    #])
+    prior = CevPrior(
+        mu_dist = D.Uniform(-0.5, 0.5),
+        beta_dist = ScaledBeta(5., 5., low=torch.tensor(0.5), high=torch.tensor(2.0)),
+        v = 0.2, S=1000
+    )
     cev_model = Cev(dt, prior)
     cev_init = torch.tensor([[0.01, 10.0, 1.0]])
 
-    prior = IndependentPrior([
-        D.Normal(0., 1.),
-        D.LogNormal(0., 1.),
-        D.Normal(0., 1.),
-        D.LogNormal(0., 1.)
-    ])
+    prior = NigPrior(
+        mu_dist=D.Normal(0., 0.1),
+        sigma_dist=ScaledBeta(2.0, 2.0, low=0.01, high=1.5),
+        gamma1_dist=ScaledBeta(2.0, 2.0, low=-0.2, high=0.2)
+    )
     nig_model = Nig(dt, prior)
-    nig_init = torch.tensor([[0.01, 0.2, -1.0, 0.01]])
+    nig_init = torch.tensor([[0.0, 0.2, -0.05, 0.05]])
 
     prior = IndependentPrior([
         D.Normal(0., 1.),

@@ -2,14 +2,16 @@ import argparse
 
 import torch
 from torch import distributions as D
+import matplotlib.pyplot as plt
 
-from utils.priors import IndependentPrior
+from utils.priors import IndependentPrior, CevPrior, NigPrior
+from utils.distributions import ScaledBeta
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['bs', 'cev', 'nig', 'sv'])
+    parser.add_argument('--save', type=str, help='Path to save the plot.')
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--verbose', action='store_true', default=False)
     return parser.parse_args()
 
 def main(args):
@@ -28,22 +30,21 @@ def main(args):
             params_true = torch.tensor([
                 [0.1, 2.0, 1.0] # mu, delta, beta
             ])
-            prior = IndependentPrior([
-                D.Uniform(-0.5, 0.5),
-                D.Uniform(0.01, 5.),
-                D.Uniform(1e-4, 2.5)
-            ])
+            prior = CevPrior(
+                mu_dist = D.Uniform(-0.5, 0.5),
+                beta_dist = ScaledBeta(5., 5., low=torch.tensor(0.5), high=torch.tensor(2.0)),
+                v = 0.2, S=100
+            )
         case 'nig':
             from models import Nig as Model
             params_true = torch.tensor([
-                [0.1, 0.2, -1.0, 0.01] # mu, sigma, xi, eta
+                [0.0, 0.2, -0.05, 0.05] # mu, sigma, gamma_1, gamma_2
             ])
-            prior = IndependentPrior([
-                D.Uniform(-0.5, 0.5),
-                D.Uniform(1e-4, 1.0),
-                D.Uniform(-5., 5.),
-                D.Uniform(1e-4, 0.5)
-            ])
+            prior = NigPrior(
+                mu_dist=D.Normal(0., 0.1),
+                sigma_dist=ScaledBeta(2.0, 2.0, low=0.01, high=1.5),
+                gamma1_dist=ScaledBeta(2.0, 2.0, low=-0.2, high=0.2)
+            )
         case 'sv':
             from models import Sv as Model
             params_true = torch.tensor([
@@ -74,6 +75,12 @@ def main(args):
         S = torch.exp(x)
     else:
         S = model.simulate(params_true, s0, T, M=1000)
+    
+    fig1 = plt.figure(figsize=(8, 5))
+    plt.plot(torch.linspace(0, T, len(S)), S)
+    fig1.tight_layout()
+    if args.save:
+        fig1.savefig(fname=f'{args.save}/{args.model}_paths.png', bbox_inches='tight')
 
     ######## Maximize the log-likelihood for each path ########
     n_paths = S.shape[1]
@@ -88,13 +95,14 @@ def main(args):
     lr = 0.5
     max_it = 500
     for i in range(n_paths):
-        if args.verbose: print(f'Path {i+1} / {n_paths}')
+        print(f'Path {i+1} / {n_paths}')
         data = S[:, i]
 
         if args.model == 'sv':
             model.build_objective(data)
         else:
             if args.model == 'cev': lr = 1.0
+            if args.model == 'nig': lr = 0.1
 
         params = prior.sample()
         opt_params = model.transform.inv(params).requires_grad_(True)
@@ -106,7 +114,7 @@ def main(args):
             loss.backward()
 
             grad_norm = torch.norm(opt_params.grad)
-            #if args.verbose: print(f'Epoch {j}, Loss: {loss.item():.3f}, Grad Norm: {grad_norm.item():.3f}')
+            #print(f'Epoch {j}, Loss: {loss.item():.3f}, Grad Norm: {grad_norm.item():.3f}')
 
             if grad_norm < grad_norm_threshold:     # Stop the optimization
                 stats['n_it'][i] = j
@@ -114,7 +122,7 @@ def main(args):
             if j == max_it - 1:
                 stats['n_it'][i] = j
                 stats['no_convergence'] += 1
-                if args.verbose: print('Maximum iteration reached.')
+                print('Maximum iteration reached.')
             optimizer.step()
 
         final_params = model.transform.to(opt_params)
@@ -130,6 +138,8 @@ def main(args):
     print(f'Std: {std}')
     print(f'Average number of it: {avg_it}')
     print(f'No convergence: {n_no_conv}')
+
+    plt.show()
 
 if __name__ == '__main__':
     args = parse_args()
