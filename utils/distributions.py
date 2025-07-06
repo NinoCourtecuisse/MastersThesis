@@ -35,9 +35,42 @@ class NormalInverseGaussian(D.Distribution):
         self.beta = beta
         self.delta = delta
 
+    @classmethod
+    def from_moments(cls, mu, sigma, gamma_1, gamma_2):
+        mu_, alpha, beta, delta = cls.reparametrize(mu, sigma, gamma_1, gamma_2)
+        return cls(mu_, alpha, beta, delta)
+
+    @staticmethod
+    def reparametrize(mu, sigma, gamma_1, gamma_2):
+        if not torch.all(gamma_2 > 5 * gamma_1**2 / 3):
+            raise ValueError(
+                f'The skewness (gamma_1) and excess kurtosis (gamma_2) must satisfy: '
+                f'3 * gamma_2 > 5 * gamma_1**2, input: {mu, sigma, gamma_1, gamma_2}'
+            )
+
+        xi, eta = NormalInverseGaussian._phi_1(gamma_1, gamma_2)
+        mu_, alpha, beta, delta = NormalInverseGaussian._phi_2(mu, sigma, xi, eta)
+        return mu_, alpha, beta, delta
+
+    @staticmethod
+    def _phi_1(gamma_1, gamma_2):
+        xi = gamma_1 / torch.sqrt((gamma_2 - 4 * gamma_1**2 / 3) * (gamma_2 - 5 * gamma_1**2 / 3))
+        eta = (gamma_2 - 4 * gamma_1**2 / 3) / 3
+        return xi, eta
+
+    @staticmethod
+    def _phi_2(mu, sigma, xi, eta):
+        sigma_tilde = sigma / torch.sqrt(1 + eta * xi**2)
+
+        mu_ = - sigma_tilde * xi + mu
+        alpha = torch.sqrt(1/eta + xi**2) / sigma_tilde
+        beta = xi / sigma_tilde
+        delta = sigma_tilde / torch.sqrt(eta)
+        return mu_, alpha, beta, delta
+
     def _get_params(self):
         return self.mu, self.alpha, self.beta, self.delta
-    
+
     def sample(self, sample_shape):
         mu, alpha, beta, delta = self._get_params()
 
@@ -60,10 +93,15 @@ class NormalInverseGaussian(D.Distribution):
 class ScaledBeta(D.Distribution):
     def __init__(self, alpha, beta, low, high):
         self.beta_dist = D.Beta(alpha, beta)
+
+        if isinstance(low, float):
+            low = torch.tensor(low)
+        if isinstance(high, float):
+            high = torch.tensor(high)
         self.low = low
         self.high = high
 
-    def sample(self, sample_shape):
+    def sample(self, sample_shape=torch.Size([])):
         u = self.beta_dist.sample(sample_shape)
         return self.low + (self.high - self.low) * u
 
