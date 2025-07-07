@@ -1,10 +1,10 @@
 import torch
 from utils.distributions import InverseGaussian, NormalInverseGaussian
-from utils.priors import IndependentPrior
-from utils.optimization import IndependentTransform, NigTransform
+from utils.priors import NigPrior
+from utils.optimization import NigTransform
 
 class Nig():
-    def __init__(self, dt: list[float, torch.Tensor], prior: IndependentPrior):
+    def __init__(self, dt: list[float, torch.Tensor], prior: NigPrior):
         if isinstance(dt, float):
             self.dt = torch.tensor(dt)
         else:
@@ -16,15 +16,15 @@ class Nig():
     def log_transition(self, opt_params, s, s_next):
         # Expects params in optimization parametrization
         params = self.transform.to(opt_params)
-        mu, sigma, gamma_1, gamma_2 = params.T.unsqueeze(2)  # shape (4, N, 1)
+        mu, sigma, xi, eta = params.T.unsqueeze(2)  # shape (4, N, 1)
         dt = self.dt
 
         log_return = torch.log(s_next / s)
         log_transition = NormalInverseGaussian.from_moments(
-            mu = dt * mu,
-            sigma = torch.sqrt(dt) * sigma,
-            gamma_1 = gamma_1 / torch.sqrt(dt),
-            gamma_2 = gamma_2 / dt
+            mu=dt * mu,
+            sigma=torch.sqrt(dt) * sigma,
+            xi=torch.sqrt(dt) * xi,
+            eta=eta / dt
         ).log_prob(log_return)
         return log_transition
 
@@ -44,8 +44,8 @@ class Nig():
     def simulate(self, params, s0, T, M):
         # Expects params in natural parametrization
         with torch.no_grad():
-            mu, sigma, gamma_1, gamma_2 = params.T.unsqueeze(2)
-            mu_, alpha, beta, delta = NormalInverseGaussian.reparametrize(mu, sigma, gamma_1, gamma_2)
+            mu, sigma, xi, eta = params.T.unsqueeze(2)
+            mu_, alpha, beta, delta = NormalInverseGaussian.reparametrize(mu, sigma, xi, eta)
             dt = self.dt
             n = int(torch.round(T / dt).item())
 

@@ -36,27 +36,14 @@ class NormalInverseGaussian(D.Distribution):
         self.delta = delta
 
     @classmethod
-    def from_moments(cls, mu, sigma, gamma_1, gamma_2):
-        mu_, alpha, beta, delta = cls.reparametrize(mu, sigma, gamma_1, gamma_2)
+    def from_moments(cls, mu, sigma, xi, eta):
+        mu_, alpha, beta, delta = cls.reparametrize(mu, sigma, xi, eta)
         return cls(mu_, alpha, beta, delta)
 
     @staticmethod
-    def reparametrize(mu, sigma, gamma_1, gamma_2):
-        if not torch.all(gamma_2 > 5 * gamma_1**2 / 3):
-            raise ValueError(
-                f'The skewness (gamma_1) and excess kurtosis (gamma_2) must satisfy: '
-                f'3 * gamma_2 > 5 * gamma_1**2, input: {mu, sigma, gamma_1, gamma_2}'
-            )
-
-        xi, eta = NormalInverseGaussian._phi_1(gamma_1, gamma_2)
+    def reparametrize(mu, sigma, xi, eta):
         mu_, alpha, beta, delta = NormalInverseGaussian._phi_2(mu, sigma, xi, eta)
         return mu_, alpha, beta, delta
-
-    @staticmethod
-    def _phi_1(gamma_1, gamma_2):
-        xi = gamma_1 / torch.sqrt((gamma_2 - 4 * gamma_1**2 / 3) * (gamma_2 - 5 * gamma_1**2 / 3))
-        eta = (gamma_2 - 4 * gamma_1**2 / 3) / 3
-        return xi, eta
 
     @staticmethod
     def _phi_2(mu, sigma, xi, eta):

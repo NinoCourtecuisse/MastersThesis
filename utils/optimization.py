@@ -50,34 +50,21 @@ class NigTransform:
     def __init__(self, prior: NigPrior):
         self.mu_transform = D.transform_to(prior.mu_dist.support)
         self.sigma_transform = D.transform_to(prior.sigma_dist.support)
-        self.gamma1_transform = D.transform_to(prior.gamma1_dist.support)
-        self.eps = 1e-10  # to enforce gamma2 > gamma1 strictly
-        self.gamma2_high = prior.gamma2_high
-
-    def _gamma2_transform(self, gamma1: torch.Tensor) -> T.ComposeTransform:
-        low = 5 * gamma1**2 / 3 + self.eps
-        high = self.gamma2_high
-        return T.ComposeTransform([
-            T.SigmoidTransform(),      # R -> (0, 1)
-            T.AffineTransform(loc=low, scale=high - low, event_dim=0)   # (0, 1) -> (low, high)
-        ])
+        self.eta_transform = D.transform_to(prior.eta_dist.support)
+        self.xi_transform = T.identity_transform
 
     def to(self, unconstrained_x: torch.Tensor) -> torch.Tensor:
-        u_mu, u_sigma, u_gamma1, u_gamma2 = unconstrained_x.T
-
-        mu = self.mu_transform(u_mu)
-        sigma = self.sigma_transform(u_sigma)
-        gamma1 = self.gamma1_transform(u_gamma1)
-        gamma2_transform = self._gamma2_transform(gamma1)
-        gamma2 = gamma2_transform(u_gamma2)
-        return torch.stack([mu, sigma, gamma1, gamma2], dim=-1)
+        u_mu, u_sigma, u_xi, u_eta = unconstrained_x.T
+        c_mu = self.mu_transform(u_mu)
+        c_sigma = self.sigma_transform(u_sigma)
+        c_xi = self.xi_transform(u_xi)
+        c_eta = self.eta_transform(u_eta)
+        return torch.stack([c_mu, c_sigma, c_xi, c_eta], dim=-1)
 
     def inv(self, constrained_x: torch.Tensor) -> torch.Tensor:
-        mu, sigma, gamma1, gamma2 = constrained_x.T
-
-        u_mu = self.mu_transform.inv(mu)
-        u_sigma = self.sigma_transform.inv(sigma)
-        u_gamma1 = self.gamma1_transform.inv(gamma1)
-        gamma2_transform = self._gamma2_transform(gamma1)
-        u_gamma2 = gamma2_transform.inv(gamma2)  
-        return torch.stack([u_mu, u_sigma, u_gamma1, u_gamma2], dim=-1)
+        c_mu, c_sigma, c_xi, c_eta = constrained_x.T
+        u_mu = self.mu_transform.inv(c_mu)
+        u_sigma = self.sigma_transform.inv(c_sigma)
+        u_xi = self.xi_transform.inv(c_xi)
+        u_eta = self.eta_transform.inv(c_eta)
+        return torch.stack([u_mu, u_sigma, u_xi, u_eta], dim=-1)
