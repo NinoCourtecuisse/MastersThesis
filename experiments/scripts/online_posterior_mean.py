@@ -3,9 +3,10 @@ import argparse
 import torch
 from torch import distributions as D
 import matplotlib.pyplot as plt
+import math
 
 from utils.data import load_data, batch_data
-from utils.priors import IndependentPrior, CevPrior
+from utils.priors import IndependentPrior, CevPrior, NigPrior
 from utils.distributions import ScaledBeta
 from utils.posterior import summary
 
@@ -14,7 +15,7 @@ from inference import KernelSGLD
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['bs', 'cev'])
+    parser.add_argument('--model', type=str, choices=['bs', 'cev', 'nig'])
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--verbose', action='store_true', default=False)
     parser.add_argument('--save', type=str, help='Path to save the plot.')
@@ -36,7 +37,7 @@ def main(args):
     dt = torch.tensor(1 / 252)
     ESS_rmin = 0.5
     window = 100
-    kernel = KernelSGLD(n_steps=50, lr=1e-2, lr_min=1e-4, gamma=0.51)
+    kernel = KernelSGLD(n_steps=100, lr=0.005, lr_min=1e-4, gamma=0.51)
     n_particles = 50
     verbose = args.verbose
 
@@ -55,6 +56,15 @@ def main(args):
             prior = CevPrior(
                 mu_dist=D.Normal(0., 0.1),
                 beta_dist=ScaledBeta(5., 5., low=torch.tensor(0.5), high=torch.tensor(2.0))
+            )
+        case 'nig':
+            from models import Nig as Model
+            params_name = ['mu', 'sigma', 'xi', 'eta']
+            prior = NigPrior(
+                mu_dist=D.Normal(0., 0.1),
+                sigma_dist=D.LogNormal(math.log(0.2), 1.0),
+                theta_eta=-math.log(0.01) / 0.1,
+                theta_xi=-math.log(0.001) / 5.
             )
 
     model = Model(dt, prior)
@@ -105,7 +115,7 @@ def main(args):
     # Contour of log-posterior and particles at 4 dates through the period
     fig3, axes = plt.subplots(2, 2, figsize=(8, 6))
     axes = axes.flatten() 
-    batch_idx = [0, 45, 120, 240]
+    batch_idx = [0, 80, 100, 150]
 
     match args.model:
         case 'bs':
@@ -113,6 +123,8 @@ def main(args):
             x = torch.linspace(-0.3, 0.35, 100)  # mu
             y = torch.linspace(1e-3, 1.0, 100)  # sigma
             x_grid, y_grid = torch.meshgrid([x, y], indexing='ij')
+            x_grid = x_grid.flatten()
+            y_grid = y_grid.flatten()
             pairs = torch.column_stack((x_grid.ravel(), y_grid.ravel()))
         case 'cev':
             slice = (1, 2)
@@ -120,7 +132,23 @@ def main(args):
             x = torch.linspace(1e-3, 100, 100)  # delta
             y = torch.linspace(0.5, 2.0, 100)   # beta
             x_grid, y_grid = torch.meshgrid([x, y], indexing='ij')
-            pairs = torch.column_stack((mu_eval*torch.ones_like(x_grid.ravel()), x_grid.ravel(), y_grid.ravel()))
+            x_grid = x_grid.flatten()
+            y_grid = y_grid.flatten()
+            pairs = torch.column_stack((mu_eval*torch.ones_like(x_grid), x_grid, y_grid))
+        case 'nig':
+            #slice = (0, 1)
+            #x = torch.linspace(-1.0, 1.0, 100)  # mu
+            #y = torch.linspace(0.02, 1.4, 100)  # sigma
+            slice = (2, 3)
+            x = torch.linspace(-10.0, 10.0, 100)  # xi
+            y = torch.linspace(1e-4, 0.1, 100)  # eta
+            x_grid, y_grid = torch.meshgrid([x, y], indexing='ij')
+            x_grid = x_grid.flatten()
+            y_grid = y_grid.flatten()
+            mu = torch.tensor(0.0)
+            sigma = torch.tensor(0.2)
+            #pairs = torch.column_stack((x_grid, y_grid, gamma1*torch.ones_like(x_grid), gamma2*torch.ones_like(x_grid)))
+            pairs = torch.column_stack((mu*torch.ones_like(x_grid), sigma*torch.ones_like(x_grid), x_grid, y_grid))
 
     transformed_pairs = model.transform.inv(pairs)
     for i in range(len(batch_idx)):
@@ -129,15 +157,14 @@ def main(args):
         t = (idx + 1) * batch_size
         start = max([t-window, 0])
         end = t
-        lpost = model.lpost(transformed_pairs, s[start:end]).view(100, 100)
+        lpost = model.lpost(transformed_pairs, s[start:end])
 
         lpost_max = lpost.max()
         levels = torch.linspace(0.9 * lpost_max, lpost_max, 50)
-        fine_levels = torch.linspace(0.99 * lpost_max, lpost_max, 1)
-        contour = ax.contourf(x_grid, y_grid, lpost, levels=levels, extend='min')
+        fine_levels = torch.linspace(0.95 * lpost_max, lpost_max, 1)
+        contour = ax.tricontourf(x_grid, y_grid, lpost, levels=levels, extend='min')
         fig3.colorbar(contour, ax=ax)
-        ax.contour(x_grid, y_grid, lpost, levels=fine_levels, linewidths=0.3)
-
+        ax.tricontour(x_grid, y_grid, lpost, levels=fine_levels, linewidths=0.5)
         ax.scatter(hist['particles'][idx][:, slice[0]], hist['particles'][idx][:, slice[1]], label='previous particles', marker='+', c='red')
         ax.scatter(hist['particles'][idx+1][:, slice[0]], hist['particles'][idx+1][:, slice[1]], label='particles after IBIS', marker='+', c='green')
         ax.set_title(f'Date {dates[t]}')

@@ -3,6 +3,7 @@ import argparse
 import torch
 from torch import distributions as D
 import matplotlib.pyplot as plt
+import math
 
 from utils.priors import IndependentPrior, CevPrior, NigPrior
 from utils.distributions import ScaledBeta
@@ -38,12 +39,13 @@ def main(args):
         case 'nig':
             from models import Nig as Model
             params_true = torch.tensor([
-                [0.0, 0.2, -0.05, 0.05] # mu, sigma, gamma_1, gamma_2
+                [0.1, 0.2, -1.0, 0.01]      # mu, sigma, xi, eta
             ])
             prior = NigPrior(
-                mu_dist=D.Normal(0., 0.1),
-                sigma_dist=ScaledBeta(2.0, 2.0, low=0.01, high=1.5),
-                gamma1_dist=ScaledBeta(2.0, 2.0, low=-0.2, high=0.2)
+                mu_dist=D.Uniform(-0.5, 0.5),
+                sigma_dist=D.LogNormal(math.log(0.2), 1.0),
+                theta_eta=-math.log(0.01) / 0.1,
+                theta_xi=-math.log(0.001) / 5
             )
         case 'sv':
             from models import Sv as Model
@@ -102,7 +104,6 @@ def main(args):
             model.build_objective(data)
         else:
             if args.model == 'cev': lr = 1.0
-            if args.model == 'nig': lr = 0.1
 
         params = prior.sample()
         opt_params = model.transform.inv(params).requires_grad_(True)

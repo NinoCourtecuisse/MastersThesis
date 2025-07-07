@@ -4,6 +4,7 @@ import torch
 from torch import distributions as D
 from torch.optim import Adam
 import matplotlib.pyplot as plt
+import math
 
 from utils.priors import NigPrior
 from utils.distributions import ScaledBeta
@@ -19,43 +20,34 @@ def main():
 
     prior = NigPrior(
         mu_dist=D.Normal(0., 0.1),
-        sigma_dist=ScaledBeta(2.0, 2.0, low=0.01, high=1.5),
-        gamma1_dist=ScaledBeta(2.0, 2.0, low=-0.2, high=0.2)
+        sigma_dist=D.LogNormal(math.log(0.2), 1.0),
+        theta_eta=-math.log(0.01) / 0.1,
+        theta_xi=-math.log(0.01) / 5
     )
     dt = 1 / 252
     nig_model = Nig(dt, prior)
 
     params_true = torch.tensor([
-        [0.0, 0.2, -0.05, 0.05]
+        [0.0, 0.2, -1.0, 0.01]  # mu, sigma, xi, eta
     ])
-    T = 2.0
+    T = 100 / 252
     s0 = torch.tensor(100.0)
     S = nig_model.simulate(params_true, s0, T, M=1).squeeze()
 
-    param_names = ['mu', 'sigma', 'gamma_1', 'gamma_2']
+    param_names = ['mu', 'sigma', 'xi', 'eta']
     param_values = {
         'mu': torch.linspace(-1.0, 1.0, 100),
-        'sigma': torch.linspace(0.02, 1.4, 100),
-        'gamma_1': torch.linspace(-0.2, 0.2, 100),
-        'gamma_2': torch.linspace(1e-3, 0.4, 100)
+        'sigma': torch.linspace(1e-3, 1.5, 100),
+        'xi': torch.linspace(-5.0, 5.0, 100),
+        'eta': torch.linspace(1e-4, 0.1, 100)
     }
-    fixed_values = {'mu': params_true[0, 0], 'sigma': params_true[0, 1], 'gamma_1': params_true[0, 2], 'gamma_2': params_true[0, 3]}
+    fixed_values = {'mu': params_true[0, 0], 'sigma': params_true[0, 1], 'xi': params_true[0, 2], 'eta': params_true[0, 3]}
 
     combinations = list(itertools.combinations(param_names, 2))
     for p1, p2 in combinations:
         grid1, grid2 = torch.meshgrid(param_values[p1], param_values[p2], indexing='ij')
-        if p2 == 'gamma_2':
-            if p1 == 'gamma_1':
-                mask = grid2 > 5 * grid1**2 / 3
-            else:
-                mask = grid2 > 5 * fixed_values['gamma_1']**2 / 3
-        elif p2 == 'gamma_1':
-            mask = fixed_values['gamma_2'] > 5 * grid2**2 / 2
-        else:
-            mask = torch.ones_like(grid1, dtype=torch.bool)
-
-        grid1 = grid1[mask]
-        grid2 = grid2[mask]
+        grid1 = grid1.flatten()
+        grid2 = grid2.flatten()
 
         n = grid1.numel()
         theta = torch.zeros((n, 4))
