@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+import numpy as np
 from torch import distributions as D
 from torch.optim import Adam
 import matplotlib.pyplot as plt
@@ -34,7 +35,7 @@ def main(args):
                 D.Uniform(-1., 1.),
                 D.Uniform(-1., 1.)
             ])
-            params_init = torch.tensor([[0.0, 0.2, 1.0, 0.0, 0.0]])
+            params_init = torch.tensor([[-0.08, 1.0, 1.0, -0.5, -0.8]])
         case 'sabr':
             from models import Sabr as Model
             prior = IndependentPrior([
@@ -43,7 +44,7 @@ def main(args):
                 D.LogNormal(0., 1.),
                 D.Uniform(-1., 1.)
             ])
-            params_init = torch.tensor([[0.0, 1.0, 0.2, 0.0]])
+            params_init = torch.tensor([[0.1, 1.0, 0.2, 0.0]])
 
     model = Model(dt, prior)
     model.build_objective(data=S)
@@ -51,6 +52,7 @@ def main(args):
     ######## MLE and retrieve the latent ########
     params = model.transform.inv(params_init).requires_grad_(True)
     optimizer = Adam([params], lr=0.1)
+    #optimizer = torch.optim.SGD([params], lr=2*1e-4)
     n_iter = 500
     for i in range(n_iter):
         optimizer.zero_grad()
@@ -63,6 +65,7 @@ def main(args):
         optimizer.step()
 
     final_params = model.transform.to(params.detach())
+    if args.verbose: print(f'Final params: {final_params}')
     h, std = model.get_latent(with_std=True)
     h_upper = h + 2 * std
     h_lower = h - 2 * std
