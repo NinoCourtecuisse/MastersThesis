@@ -1,16 +1,19 @@
 import torch
 from utils.distributions import InverseGaussian, NormalInverseGaussian
-from utils.priors import NigPrior
-from utils.optimization import NigTransform
+from utils.priors import NigPrior, IndependentPrior
+from utils.optimization import NigTransform, IndependentTransform
 
 class Nig():
-    def __init__(self, dt: list[float, torch.Tensor], prior: NigPrior):
+    def __init__(self, dt: list[float, torch.Tensor], prior: list[IndependentPrior, NigPrior]):
         if isinstance(dt, float):
             self.dt = torch.tensor(dt)
         else:
             self.dt = dt
         self.prior = prior
-        self.transform = NigTransform(prior)
+        if isinstance(prior, IndependentPrior):
+            self.transform = IndependentTransform(prior)
+        else:
+            self.transform = NigTransform(prior)
         self.is_sv = False
 
     def log_transition(self, opt_params, s, s_next):
