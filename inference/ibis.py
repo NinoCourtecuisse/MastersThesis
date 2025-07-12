@@ -42,18 +42,25 @@ class Ibis():
         ess = 1. / torch.sum(norm_weights ** 2)
         return ess
 
-    def step(self, new_data, full_data):
+    def step(self, new_data, full_data, verbose=False):
+        if self.model.is_sv:
+            self.model.build_objective(new_data)
+        
+        # 1. Compute the (logarithm of) importance weights
         lw_increment = self.model.ll(self.particles, new_data)
-
-        self.update_marginal_ll(lw_increment)
         self.lweights += lw_increment
 
+        # 2. Compute the model marginal likelihood
+        self.update_marginal_ll(lw_increment)
+
+        # 3. Compute degeneracy metric: Effective Sample Size
         norm_weights = self.compute_norm_weights()
         ess = self.compute_ess(norm_weights)
-        print(f"ESS={ess:.2f}")
+        if verbose: print(f"ESS={ess:.2f}")
 
+        # 4. If necessary, resample and move the particles
         if ess < self.ess_rmin * self.n_particles:
-            print("Resampling...")
+            if verbose: print("Resampling...")
             idx = torch.multinomial(norm_weights, self.n_particles, replacement=True)
             self.particles = self.particles[idx, :]
             self.lweights = torch.zeros(self.n_particles)
@@ -63,25 +70,31 @@ class Ibis():
                 model=self.model,
                 particles=self.particles,
             )
+        return norm_weights, ess
 
 def backtest(model, kernel, batch_data, full_data,
-             n_particles, ESS_rmin, window):
+             n_particles, ESS_rmin, window, verbose=False):
 
     ibis = Ibis(model, n_particles, kernel, ESS_rmin, window)
     ibis.init_particles()
 
-    hist = {'particles':[], 'weights':[], 'll':[]}
-    hist['particles'].append(ibis.get_particles())
-    hist['weights'].append(ibis.compute_norm_weights())
+    hist = {'particles':[], 'weights':[], 'll':[], 'ess': []}
 
     (n_batch, batch_size) = batch_data.shape
     for k in range(n_batch):
-        print(f"Batch {k} / {n_batch}")
+        if verbose: print(f"Batch {k} / {n_batch}")
         batch = batch_data[k, :]
         t = (k + 1) * batch_size
 
-        ibis.step(batch, full_data[:t])
+        # Save current particles
         hist['particles'].append(ibis.get_particles())
-        hist['weights'].append(ibis.compute_norm_weights())
+
+        # Compute noramlized importance weights and ESS of current particles
+        norm_weights, ess = ibis.step(batch, full_data[:t], verbose)
+
+        hist['weights'].append(norm_weights)
+        hist['ess'].append(ess)
+
+        # Save model marginal likelihood based on current particles
         hist['ll'].append(ibis.get_marginal_ll())
     return hist
