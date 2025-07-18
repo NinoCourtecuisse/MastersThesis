@@ -2,13 +2,16 @@ import torch
 import numpy as np
 from utils.priors import IndependentPrior
 from utils.optimization import IndependentTransform
-from utils.special_functions import logit
+from utils.special_functions import logit, inv_logit
 
 from PyMB import PyMB_model, Laplace
 
 class Sv():
-    def __init__(self, dt: float, prior: IndependentPrior):
-        self.dt = dt
+    def __init__(self, dt: list[float, torch.Tensor], prior: IndependentPrior):
+        if isinstance(dt, float):
+            self.dt = torch.tensor(dt)
+        else:
+            self.dt = dt
         self.prior = prior
         self.transform = IndependentTransform(prior)
 
@@ -16,7 +19,7 @@ class Sv():
         self.m_vec.load_model(so_file='PyMB/likelihoods/tmb_tmp/sv_vec.so')
         self.m = PyMB_model(name='sv')
         self.m.load_model(so_file='PyMB/likelihoods/tmb_tmp/sv.so')
-    
+
     def build_objective(self, data):
         self.m.init['mu'] = 0.0
         self.m.init['log_sigma_y'] = 0.0  # Dummy parameters, will not be used
@@ -24,7 +27,7 @@ class Sv():
         self.m.init['logit_phi'] = 3.0
         self.m.init['logit_rho'] = 0.0
 
-        self.m.data['dt'] = self.dt
+        self.m.data['dt'] = self.dt.item()
         log_returns = torch.log(data[1:] / data[:-1])
         self.m.data['y'] = log_returns.numpy()
         self.m.init['h'] = torch.zeros_like(log_returns).numpy()
@@ -40,7 +43,7 @@ class Sv():
         log_returns = torch.log(data[1:] / data[:-1])
         self.m_vec.data['N'] = len(log_returns)
         self.m_vec.data['P'] = n_particles
-        self.m.data['dt'] = self.dt
+        self.m_vec.data['dt'] = self.dt.item()
 
         rep_ret = np.tile(log_returns.numpy()[:, None], (1, n_particles)).T
         self.m_vec.data['y'] = rep_ret
@@ -57,16 +60,38 @@ class Sv():
 
         tmb_params = torch.stack([mu, log_sigma_y, log_sigma_h, logit_phi, logit_rho], dim=1)
         return tmb_params
+    
+    def inv_transform_tmb(self, tmb_params):
+        mu, log_sigma_y, log_sigma_h, logit_phi, logit_rho = tmb_params.T
+        c_params = torch.stack([
+            mu, log_sigma_y.exp(), log_sigma_h.exp(),
+            inv_logit(logit_phi), inv_logit(logit_rho)
+        ], dim=1)
+        return c_params
 
     def get_latent(self, with_std=False):
-        report = torch.tensor(self.m.get_report())
+        report = torch.tensor(self.m.get_random_report(), dtype=torch.float32)
+        #report = torch.tensor(self.m.get_report())
         h = report[:, 0]
         std = report[:, 1]
         if with_std:
             return h, std
         return h
 
+    def get_cov_fixed(self, map_opt):
+        map_nat = self.transform.to(map_opt)
+        map_tmb = self.transform_tmb(map_nat)
+
+        print(map_nat)
+        cov_np = self.m.get_cov_fixed(map_tmb.numpy())  # Cov of natural params
+        cov = torch.tensor(cov_np, dtype=torch.float32)
+
+        eigenvals = torch.linalg.eigvalsh(cov)
+        print(eigenvals)
+        return cov
+
     def sum_ll(self, opt_params, data):
+        return NotImplementedError
         # Expects params in optimization parametrization
         natural_params = self.transform.to(opt_params)
         tmb_params = self.transform_tmb(natural_params)
@@ -78,6 +103,7 @@ class Sv():
 
     def ll(self, opt_params, data):
         # Expects params in optimization parametrization
+        self.build_objective(data)
         natural_params = self.transform.to(opt_params)
         tmb_params = self.transform_tmb(natural_params)
 
@@ -94,6 +120,58 @@ class Sv():
         llik = self.ll(opt_params, data)
         lprior = self.prior.log_prob(self.transform.to(opt_params))
         return llik + lprior
+    
+    def compute_map(self, u_init, data, lr, n_steps, verbose=False):
+        u_params = u_init.detach().clone().requires_grad_(True)
+        optimizer = torch.optim.LBFGS(params=[u_params], lr=lr, max_iter=n_steps)
+        closure_calls = 0
+        def closure():
+            nonlocal closure_calls
+            closure_calls += 1
+            optimizer.zero_grad()
+            loss = -self.lpost(u_params, data)
+            if verbose: print(f'Loss: {loss.item():.3f}')
+            loss.backward()
+            return loss
+        optimizer.step(closure)
+        if closure_calls >= n_steps:
+            raise ValueError("MAP optimization didn't converge.")
+
+        u_map = u_params.detach()
+        return u_map
+
+    def compute_cov(self, map_c):
+        map_tmb = self.transform_tmb(map_c)
+        nll_hessian_np = self.m.get_hessian(map_tmb.numpy())
+        nll_hessian = torch.tensor(nll_hessian_np, dtype=torch.float32).squeeze()
+
+        nlprior = lambda tmb_params: -self.prior.log_prob(self.inv_transform_tmb(tmb_params))
+        nlprior_hessian = torch.func.hessian(nlprior, argnums=0)(map_tmb).squeeze()
+
+        hessian = nll_hessian + nlprior_hessian  # Log posterior Hessian in the TMB parametrization
+        cov_tmb = torch.linalg.inv(hessian)
+        return cov_tmb
+
+    def sample_posterior(self, map_c, n_samples):
+        cov_tmb = self.compute_cov(map_c)
+        map_tmb = self.transform_tmb(map_c)
+        posterior = torch.distributions.MultivariateNormal(
+            loc=map_tmb.squeeze(),
+            covariance_matrix=cov_tmb
+        )
+        samples_tmb = posterior.sample(sample_shape=(n_samples,))
+        samples_c = self.inv_transform_tmb(samples_tmb)
+        samples_u = self.transform.inv(samples_c)
+        return samples_u
+
+    def params_uncertainty(self, u_init, data, n_particles,
+                           lr, n_steps, verbose=False):
+        self.build_objective(data)
+
+        u_map = self.compute_map(u_init, data, lr, n_steps, verbose)
+        c_map = self.transform.to(u_map)
+        u_particles = self.sample_posterior(c_map, n_particles)
+        return u_map, u_particles
 
     def simulate(self, params, s0, T, M):
         with torch.no_grad():

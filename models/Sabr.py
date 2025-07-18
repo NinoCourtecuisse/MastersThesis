@@ -50,6 +50,7 @@ class Sabr():
 
     def ll(self, opt_params, data):
         # Expects params in optimization parametrization
+        self.build_objective(data)
         natural_params = self.transform.to(opt_params)
         tmb_params = self.transform_tmb(natural_params)
 

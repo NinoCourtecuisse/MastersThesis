@@ -37,6 +37,40 @@ class Bs():
         lprior = self.prior.log_prob(self.transform.to(opt_params))
         return llik + lprior
 
+    def compute_map(self, u_init, data, lr, n_steps, verbose=False):
+        u_params = u_init.detach().clone().requires_grad_(True)
+        optimizer = torch.optim.LBFGS(params=[u_params], lr=lr, max_iter=n_steps)
+        closure_calls = 0
+        def closure():
+            nonlocal closure_calls
+            closure_calls += 1
+            optimizer.zero_grad()
+            loss = -self.lpost(u_params, data)
+            if verbose: print(f'Loss: {loss.item():.3f}')
+            loss.backward()
+            return loss
+        optimizer.step(closure)
+        if closure_calls >= n_steps:
+            raise ValueError("MAP optimization didn't converge.")
+
+        u_map = u_params.detach()
+        return u_map
+
+    def params_uncertainty(self, u_init, data, n_particles,
+                           lr, n_steps, verbose=False):
+        u_map = self.compute_map(u_init, data, lr, n_steps, verbose)
+
+        nll = lambda u_params: -self.lpost(u_params, data)
+        hessian = torch.func.hessian(nll, argnums=0)(u_map).detach().squeeze()
+        u_cov = torch.linalg.inv(hessian)
+
+        d = D.MultivariateNormal(
+            loc=u_map.squeeze(),
+            covariance_matrix=u_cov
+        )
+        u_particles = d.sample(sample_shape=(n_particles,))
+        return u_map, u_particles
+
     def simulate(self, params, s0, T, M):
         # Expects params in natural parametrization
         with torch.no_grad():
