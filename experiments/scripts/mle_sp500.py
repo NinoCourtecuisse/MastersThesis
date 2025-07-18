@@ -27,8 +27,6 @@ def mle(model, params_init, data, lr, start, stop,
     for t in range(start, stop):
         if verbose: print(f'Day {t} / {stop-1}')
         current_data = data[t-window:t]
-        if isinstance(model, Sv) or isinstance(model, Sabr):
-            model.build_objective(current_data)
 
         if t in optimization_times:
             for _ in range(n_grad_steps):
@@ -123,7 +121,6 @@ def main(args):
     ax.plot(dates[start-1:stop], tau * sv_ll, label='sv', linewidth=0.8)
     ax.plot(dates[start-1:stop], tau * sabr_ll, label='sabr', linewidth=0.8)
     ax.legend()
-    plt.show()
 
     all_ll = torch.stack([bs_ll, cev_ll, nig_ll, sv_ll, sabr_ll], dim=0)
     log_l_normalized = tau * all_ll
