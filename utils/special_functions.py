@@ -33,3 +33,6 @@ def sliding_sum(x: torch.Tensor, w: int) -> torch.Tensor:
 
 def logit(x):
     return torch.log((1 + x) / (1 - x))
+
+def inv_logit(x):
+    return (torch.exp(x) - 1.) / (torch.exp(x) + 1.)

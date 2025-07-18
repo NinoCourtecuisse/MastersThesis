@@ -439,11 +439,35 @@ class model:
         '''
         return np.array(get_R_attr_from_NamedList(get_R_attr_from_NamedList(self.TMB.model, 'report')(), name))
 
-    def get_report(self):
+    def get_report(self, par_fixed = None):
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            if par_fixed:
+                report = self.TMB.sdreport(self.TMB.model, par_fixed)
+            else:   # Uses the best
+                report = self.TMB.sdreport(self.TMB.model)
+        report = dict(zip(report.names(), report))
+        return report
+
+    def get_random_report(self):
         with localconverter(ro.default_converter + numpy2ri.converter):
             report = self.TMB.sdreport(self.TMB.model)
             report_with_std = self.TMB.summary_sdreport(report, select = np.array(["random"]))
         return report_with_std
+    
+    def get_cov_fixed(self, par_fixed):
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            report = self.TMB.sdreport(self.TMB.model, par_fixed)
+        cov_fixed = np.array(get_R_attr_from_NamedList(report, 'cov'))
+        return cov_fixed
+
+    def get_hessian(self, par_fixed):
+        with localconverter(ro.default_converter + numpy2ri.converter):
+            hessian_np = self.R.r['optimHess'](
+                par_fixed,
+                get_R_attr_from_NamedList(self.TMB.model, 'fn'),
+                get_R_attr_from_NamedList(self.TMB.model, 'gr')
+            )
+        return hessian_np
 
     def simulate_parameters(self, draws=100, params=[], quiet=False, constrain=False):
         '''
