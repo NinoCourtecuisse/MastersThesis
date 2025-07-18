@@ -43,9 +43,6 @@ class Ibis():
         return ess
 
     def step(self, new_data, full_data, verbose=False):
-        if self.model.is_sv:
-            self.model.build_objective(new_data)
-        
         # 1. Compute the (logarithm of) importance weights
         lw_increment = self.model.ll(self.particles, new_data)
         self.lweights += lw_increment
