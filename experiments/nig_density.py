@@ -1,19 +1,10 @@
-import argparse
-
 import torch
+from torch import distributions as D
 import matplotlib.pyplot as plt
 
-from torch import distributions as D
-from utils.distributions import NormalInverseGaussian
+from src.utils.distributions import NormalInverseGaussian
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--save', type=str, help='Path to save the plot.')
-    return parser.parse_args()
-
-def main(args):
-    torch.manual_seed(args.seed)
+def main():
     params = {
         'mu': torch.tensor([0., 0., 0.]),
         'sigma': torch.tensor([1., 1., 1.]),
@@ -40,10 +31,7 @@ def main(args):
     fig1.legend()
     fig1.tight_layout()
 
-    if args.save:
-        fig1.savefig(fname=f'{args.save}/nig_distribution.png', bbox_inches='tight')
     plt.show()
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    main()

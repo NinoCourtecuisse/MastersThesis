@@ -1,19 +1,16 @@
 import argparse
 
 import torch
-import numpy as np
 from torch import distributions as D
 from torch.optim import Adam
 import matplotlib.pyplot as plt
 
-from utils.data import load_data
-from utils.priors import IndependentPrior
+from src.utils.data import load_data
+from src.utils.priors import IndependentPrior
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['sv', 'sabr'])
-    parser.add_argument('--save', type=str, help='Path to save the plot.')
-    parser.add_argument('--verbose', action='store_true', default=False)
+    parser.add_argument('--model', type=str, choices=['sv', 'sabr'], required=True)
     return parser.parse_args()
 
 def main(args):
@@ -27,7 +24,7 @@ def main(args):
     ######## Instantiate the model ########
     match args.model:
         case 'sv':
-            from models import Sv as Model
+            from src.models import Sv as Model
             prior = IndependentPrior([
                 D.Uniform(-0.1, 0.1),   # mu, sigma_y, sigma_h, phi, rho
                 D.LogNormal(0., 1.),
@@ -37,7 +34,7 @@ def main(args):
             ])
             params_init = torch.tensor([[-0.08, 1.0, 1.0, -0.5, -0.8]])
         case 'sabr':
-            from models import Sabr as Model
+            from src.models import Sabr as Model
             prior = IndependentPrior([
                 D.Uniform(-1e-2, 1e-2),       # mu, beta, sigma, rho
                 D.LogNormal(0., 1.),
@@ -45,6 +42,8 @@ def main(args):
                 D.Uniform(-1., 1.)
             ])
             params_init = torch.tensor([[0.1, 1.0, 0.2, 0.0]])
+        case _:
+            raise NotImplementedError(f"Model {args.model} is not implemented.")
 
     model = Model(dt, prior)
     model.build_objective(data=S)
@@ -53,19 +52,18 @@ def main(args):
     params = model.transform.inv(params_init).requires_grad_(True)
     optimizer = Adam([params], lr=0.1)
     #optimizer = torch.optim.SGD([params], lr=2*1e-4)
-    n_iter = 500
+    n_iter = 300
     for i in range(n_iter):
         optimizer.zero_grad()
         loss = - model.ll(params, data=S)
         loss.backward()
 
-        if args.verbose:
-            grad_norm = torch.norm(params.grad)
-            print(f"Iteration {i} / {n_iter}: grad norm={grad_norm.item():.3f}")
+        grad_norm = torch.norm(params.grad)
+        print(f"Iteration {i} / {n_iter}: grad norm={grad_norm.item():.3f}")
         optimizer.step()
 
     final_params = model.transform.to(params.detach())
-    if args.verbose: print(f'Final params: {final_params}')
+    print(f'Final params: {final_params}')
     h, std = model.get_latent(with_std=True)
     h_upper = h + 2 * std
     h_lower = h - 2 * std
@@ -91,10 +89,7 @@ def main(args):
     plt.legend()
     plt.grid(True)
 
-    if args.save:
-        plt.savefig(args.save, bbox_inches='tight')
-    else:
-        plt.show()
+    plt.show()
 
 if __name__ == '__main__':
     args = parse_args()

@@ -1,15 +1,8 @@
-import argparse
-
 import torch
 import matplotlib.pyplot as plt
-from utils.data import load_data
+from src.utils.data import load_data
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--save', type=str, help='Path to save the plot.')
-    return parser.parse_args()
-
-def main(args):
+def main():
     ######## Load data ########
     path = 'data/spx_spot.csv'
     dates, s = load_data(path)
@@ -35,11 +28,7 @@ def main(args):
 
     plt.figure(figsize=(10, 5))
     plt.plot(dates[1:], log_returns, linewidth=0.8)
-    if args.save:
-        plt.savefig(args.save, bbox_inches='tight')
-    else:
-        plt.show()
+    plt.show()
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    main()

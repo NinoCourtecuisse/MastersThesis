@@ -1,21 +1,13 @@
-import argparse
-
 import torch
 from torch import distributions as D
 import matplotlib.pyplot as plt
 
-from utils.data import load_data
-from utils.priors import CevPrior
-from utils.distributions import ScaledBeta
+from src.utils.data import load_data
+from src.utils.priors import CevPrior
+from src.utils.distributions import ScaledBeta
+from src.models import Cev
 
-from models import Cev
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--save', type=str, help='Path to save the plot.')
-    return parser.parse_args()
-
-def main(args):
+def main():
     ######## Load data ########
     path = 'data/spx_spot.csv'
     dates, s = load_data(path)
@@ -53,11 +45,8 @@ def main(args):
     plt.xlabel(r'$\delta$')
     plt.ylabel(r'$\beta$')
     plt.legend()
-    
-    if args.save:
-        fig1.savefig(fname=f'{args.save}/cev_prior.png', bbox_inches='tight')
+
     plt.show()
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    main()

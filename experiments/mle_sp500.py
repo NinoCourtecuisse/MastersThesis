@@ -6,26 +6,25 @@ from torch.optim import Adam
 import matplotlib.pyplot as plt
 import math
 
-from utils.data import load_data
-from utils.priors import IndependentPrior, CevPrior, NigPrior
-from utils.distributions import ScaledBeta
+from src.utils.data import load_data
+from src.utils.priors import IndependentPrior, CevPrior, NigPrior
+from src.utils.distributions import ScaledBeta
 
-from models import Bs, Cev, Nig, Sv, Sabr
+from src.models import Bs, Cev, Nig, Sv, Sabr
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--verbose', action='store_true', default=False)
     return parser.parse_args()
 
 def mle(model, params_init, data, lr, start, stop,
-        optimization_times, n_grad_steps, window, verbose=False):
+        optimization_times, n_grad_steps, window):
     params = model.transform.inv(params_init).requires_grad_(True)
     optimizer = Adam([params], lr=lr)
 
     log_lik = torch.zeros(size=(stop-start,))
     for t in range(start, stop):
-        if verbose: print(f'Day {t} / {stop-1}')
+        print(f'Day {t} / {stop-1}')
         current_data = data[t-window:t]
 
         if t in optimization_times:
@@ -101,16 +100,11 @@ def main(args):
 
     ######## MLE ########
 
-    bs_ll = mle(bs_model, bs_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window,
-                verbose=args.verbose)
-    cev_ll = mle(cev_model, cev_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window,
-                verbose=args.verbose)
-    nig_ll = mle(nig_model, nig_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window,
-                verbose=args.verbose)
-    sv_ll = mle(sv_model, sv_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window,
-                verbose=args.verbose)
-    sabr_ll = mle(sabr_model, sabr_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window,
-                verbose=args.verbose)
+    bs_ll = mle(bs_model, bs_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
+    cev_ll = mle(cev_model, cev_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
+    nig_ll = mle(nig_model, nig_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
+    sv_ll = mle(sv_model, sv_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window)
+    sabr_ll = mle(sabr_model, sabr_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window)
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(dates[start-1:stop], 10 * S[start-1:stop] / S[0], linewidth=0.5, c='grey')

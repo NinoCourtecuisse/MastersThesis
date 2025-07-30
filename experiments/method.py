@@ -5,12 +5,12 @@ from torch import distributions as D
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
 
-from utils.data import load_data
-from utils.priors import IndependentPrior, CevPrior
-from utils.distributions import ScaledBeta
-from inference.estimate_nothing import compute_log_weights, update_particles
+from src.utils.data import load_data
+from src.utils.priors import IndependentPrior, CevPrior
+from src.utils.distributions import ScaledBeta
+from src.inference.estimateNothing import compute_log_weights, update_particles
 
-from models import Bs, Cev, Nig
+from src.models import Bs, Cev, Nig
 
 def parse_args():
     parser = argparse.ArgumentParser()

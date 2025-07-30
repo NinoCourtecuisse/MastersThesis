@@ -2,12 +2,11 @@ import argparse
 
 import torch
 from torch import distributions as D
-from torch.optim import Adam
 import matplotlib.pyplot as plt
 import math
 
-from utils.priors import IndependentPrior, NigPrior
-from utils.distributions import ScaledBeta
+from src.utils.priors import IndependentPrior, NigPrior
+from src.utils.distributions import ScaledBeta
 
 import torch
 import matplotlib.pyplot as plt
@@ -15,7 +14,7 @@ import itertools
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['nig', 'sv'])
+    parser.add_argument('--model', type=str, choices=['nig', 'sv'], required=True)
     parser.add_argument('--seed', type=int, default=0)
     return parser.parse_args()
 
@@ -24,7 +23,7 @@ def main(args):
 
     match args.model:
         case 'nig':
-            from models import Nig as Model
+            from src.models import Nig as Model
             prior = NigPrior(
                 mu_dist=D.Normal(0., 0.1),
                 sigma_dist=D.LogNormal(math.log(0.2), 1.0),
@@ -46,7 +45,7 @@ def main(args):
                 'xi': params_true[0, 2], 'eta': params_true[0, 3]
             }
         case 'sv':
-            from models import Sv as Model
+            from src.models import Sv as Model
             prior = IndependentPrior([
                 D.Normal(0., 0.1),
                 D.LogNormal(math.log(0.2), 1.),

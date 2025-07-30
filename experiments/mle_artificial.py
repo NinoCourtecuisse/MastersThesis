@@ -5,20 +5,19 @@ from torch import distributions as D
 import matplotlib.pyplot as plt
 import math
 
-from utils.priors import IndependentPrior, CevPrior, NigPrior
-from utils.distributions import ScaledBeta
+from src.utils.priors import IndependentPrior, CevPrior, NigPrior
+from src.utils.distributions import ScaledBeta
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['bs', 'cev', 'nig', 'sv'])
-    parser.add_argument('--save', type=str, help='Path to save the plot.')
+    parser.add_argument('--model', type=str, choices=['bs', 'cev', 'nig', 'sv'], required=True)
     parser.add_argument('--seed', type=int, default=0)
     return parser.parse_args()
 
 def main(args):
     match args.model:
         case 'bs':
-            from models import Bs as Model
+            from src.models import Bs as Model
             params_true = torch.tensor([
                 [0.1, 0.2] # mu, sigma
             ])
@@ -27,7 +26,7 @@ def main(args):
                 D.Uniform(1e-4, 1.0)
             ])
         case 'cev':
-            from models import Cev as Model
+            from src.models import Cev as Model
             params_true = torch.tensor([
                 [0.1, 2.0, 1.0] # mu, delta, beta
             ])
@@ -37,7 +36,7 @@ def main(args):
                 v = 0.2, S=100
             )
         case 'nig':
-            from models import Nig as Model
+            from src.models import Nig as Model
             params_true = torch.tensor([
                 [0.1, 0.2, -1.0, 0.01]      # mu, sigma, xi, eta
             ])
@@ -48,7 +47,7 @@ def main(args):
                 theta_xi=-math.log(0.001) / 5
             )
         case 'sv':
-            from models import Sv as Model
+            from src.models import Sv as Model
             params_true = torch.tensor([
                 [0.0, 0.1, 4.0, 0.9, -0.5] # mu, sigma_y, sigma_h, phi, rho
             ])
@@ -81,8 +80,6 @@ def main(args):
     fig1 = plt.figure(figsize=(8, 5))
     plt.plot(torch.linspace(0, T, len(S)), S)
     fig1.tight_layout()
-    if args.save:
-        fig1.savefig(fname=f'{args.save}/{args.model}_paths.png', bbox_inches='tight')
 
     ######## Maximize the log-likelihood for each path ########
     n_paths = S.shape[1]
