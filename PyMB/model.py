@@ -412,15 +412,6 @@ class model:
                 '\nThe model did not successfully converge, exited with the following warning message:')
             print(self.TMB.fit[self.TMB.fit.names.index('message')][0] + '\n')
 
-    def get_report(self, par_fixed = None):
-        with localconverter(ro.default_converter + numpy2ri.converter):
-            if par_fixed:
-                report = self.TMB.sdreport(self.TMB.model, par_fixed)
-            else:   # Uses the best
-                report = self.TMB.sdreport(self.TMB.model)
-        report = dict(zip(report.names(), report))
-        return report
-
     def get_random_report(self):
         with localconverter(ro.default_converter + numpy2ri.converter):
             report = self.TMB.sdreport(self.TMB.model)

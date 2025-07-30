@@ -71,7 +71,6 @@ class Sv():
 
     def get_latent(self, with_std=False):
         report = torch.tensor(self.m.get_random_report(), dtype=torch.float32)
-        #report = torch.tensor(self.m.get_report())
         h = report[:, 0]
         std = report[:, 1]
         if with_std:

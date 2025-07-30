@@ -15,12 +15,9 @@ import itertools
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['nig', 'sv'], required=True)
-    parser.add_argument('--seed', type=int, default=0)
     return parser.parse_args()
 
 def main(args):
-    torch.manual_seed(args.seed)
-
     match args.model:
         case 'nig':
             from src.models import Nig as Model

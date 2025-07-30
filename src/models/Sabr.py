@@ -37,7 +37,7 @@ class Sabr():
         return tmb_params
 
     def get_latent(self, with_std=False):
-        report = torch.tensor(self.m.get_report())
+        report = torch.tensor(self.m.get_random_report(), dtype=torch.float32)
         h = report[:, 0]
         std = report[:, 1]
         if with_std:

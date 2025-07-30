@@ -15,7 +15,6 @@ from src.models import Bs, Cev, Nig
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--verbose', action='store_true', default=False)
     return parser.parse_args()
 
 def main(args):
@@ -109,8 +108,8 @@ def main(args):
 
         # 2.2 and 2.3: Resample and move 
         #   -> Only consider recent past (fixed window) for the update. Not Bayesian exact but better results.
-        dataset = TensorDataset(S[:t_k+1])
-        #dataset = TensorDataset(S[max(t_k+1-window, 0):t_k+1])
+        #dataset = TensorDataset(S[:t_k+1])
+        dataset = TensorDataset(S[max(t_k+1-window, 0):t_k+1])
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         n_batch = len(dataloader)
         #batch_weights = torch.exp(-(n_batch - torch.arange(n_batch)))
