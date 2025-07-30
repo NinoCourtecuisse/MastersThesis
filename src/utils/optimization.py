@@ -1,7 +1,7 @@
 import torch
 from torch import distributions as D
-from utils.priors import IndependentPrior, CevPrior, NigPrior
-from utils.special_functions import logit, inv_logit
+from src.utils.priors import IndependentPrior, CevPrior, NigPrior
+from src.utils.special_functions import logit, inv_logit
 import torch.distributions.transforms as T
 
 class IndependentTransform:

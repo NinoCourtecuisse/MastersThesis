@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-from utils.priors import IndependentPrior
-from utils.optimization import IndependentTransform
-from utils.special_functions import logit, inv_logit
+from src.utils.priors import IndependentPrior
+from src.utils.optimization import IndependentTransform
+from src.utils.special_functions import logit, inv_logit
 
 from PyMB import PyMB_model, Laplace
 

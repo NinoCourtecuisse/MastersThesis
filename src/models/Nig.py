@@ -1,8 +1,8 @@
 import torch
 from torch import distributions as D
-from utils.distributions import InverseGaussian, NormalInverseGaussian
-from utils.priors import NigPrior, IndependentPrior
-from utils.optimization import NigTransform, IndependentTransform
+from src.utils.distributions import InverseGaussian, NormalInverseGaussian
+from src.utils.priors import NigPrior, IndependentPrior
+from src.utils.optimization import NigTransform, IndependentTransform
 
 class Nig():
     def __init__(self, dt: list[float, torch.Tensor], prior: list[IndependentPrior, NigPrior]):

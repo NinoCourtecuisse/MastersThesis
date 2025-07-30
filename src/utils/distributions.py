@@ -1,7 +1,7 @@
 import torch
 from torch import distributions as D
 from math import pi
-from utils.special_functions import torch_k1e
+from src.utils.special_functions import torch_k1e
 
 class InverseGaussian(D.Distribution):
     def __init__(self, mu, lam):

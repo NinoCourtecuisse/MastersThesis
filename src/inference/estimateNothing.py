@@ -1,6 +1,6 @@
 import torch
 import itertools
-from inference.sgld import SGLD, PowerLRScheduler
+from src.inference.Sgld import SGLD, PowerLRScheduler
 
 def get_batch_at_index(dataloader, i):
     if i < 0 or i >= len(dataloader):
