@@ -1,6 +1,14 @@
 import torch
 from torch import distributions as D
 
+"""
+Defines structured priors with possible dependencies.
+
+- IndependentPrior: Independent priors on each dimension: p(x₁, ..., xₙ) = ∏ p(xᵢ)
+- CevPrior: Custom dependency for CEV model: p(μ, δ, β) = p(μ) p(δ | β) p(β)
+- NigPrior: Custom dependency for NIG model: p(μ, σ, ξ, η) = p(μ) p(σ) p(ξ | η) p(η)
+"""
+
 class IndependentPrior:
     def __init__(self, dists: list[D.Distribution]):
         self.dists = dists
@@ -16,13 +24,7 @@ class IndependentPrior:
     def log_prob(self, x: torch.Tensor) -> torch.Tensor:
         log_probs = []
         for i, d in enumerate(self.dists):
-            if isinstance(d, D.Uniform):
-                mask = (x[:, i] >= d.low) & (x[:, i] < d.high)
-            else:
-                mask = d.support.check(x[:, i])         # Check if x is in the support
-            lp = torch.full_like(x[:, i], -10**9)       # If not: set the log_prob to low value
-            lp[mask] = d.log_prob(x[:, i][mask])
-
+            lp = d.log_prob(x[:, i])
             log_probs.append(lp)
         return torch.stack(log_probs, dim=-1).sum(dim=-1)
 

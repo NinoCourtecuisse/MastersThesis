@@ -1,8 +1,20 @@
 import torch
 from torch import distributions as D
+import torch.distributions.transforms as T
+
 from src.utils.priors import IndependentPrior, CevPrior, NigPrior
 from src.utils.special_functions import logit, inv_logit
-import torch.distributions.transforms as T
+
+"""
+This file defines all reparameterizations used for unconstrained optimization.
+Constraints are inferred from the associated prior distributions.
+
+- IndependentTransform: Applies per-dimension transforms using an IndependentPrior.
+- CevTransform: Reparameterization for CevPrior with custom dependency structure.
+- NigTransform: Reparameterization for NigPrior with custom dependency structure.
+- SvTmbTransform: Transform parameters to the parametrization used in TMB.
+- SabrTmbTransform: Transform parameters to the parametrization used in TMB.
+"""
 
 class IndependentTransform:
     def __init__(self, prior: IndependentPrior):
@@ -11,25 +23,18 @@ class IndependentTransform:
             constraint = d.support
             transform = D.transform_to(constraint)
             self.transforms.append(transform)
-    
+
     def to(self, unconstrained_x: torch.Tensor) -> torch.Tensor:
         constrained_x = []
         for i, transform in enumerate(self.transforms):
             constrained_x.append(transform(unconstrained_x[:, i]))
         return torch.stack(constrained_x, dim=-1)
-    
+
     def inv(self, constrained_x: torch.Tensor) -> torch.Tensor:
         unconstrained_x = []
         for i, transform in enumerate(self.transforms):
             unconstrained_x.append(transform.inv(constrained_x[:, i]))
         return torch.stack(unconstrained_x, dim=-1)
-    
-    def log_abs_det(self, unconstrained_x):
-        log_abs_dets = torch.zeros(size=(unconstrained_x.shape[0],))
-        for i, transform in enumerate(self.transforms):
-            grad_i = torch.vmap(torch.func.grad(transform, argnums=0))(unconstrained_x[:, i])
-            log_abs_dets += grad_i.abs().log()
-        return log_abs_dets
 
 class CevTransform:
     def __init__(self, prior: CevPrior):
@@ -78,7 +83,7 @@ class NigTransform:
         return torch.stack([u_mu, u_sigma, u_xi, u_eta], dim=-1)
 
 class SvTmbTransform:
-    def to(self, constrained_x):
+    def to(self, constrained_x: torch.Tensor) -> torch.Tensor:
         mu, sigma_y, sigma_h, phi, rho = constrained_x.T
         log_sigma_y = torch.log(sigma_y)
         log_sigma_h = torch.log(sigma_h)
@@ -88,7 +93,7 @@ class SvTmbTransform:
         tmb_params = torch.stack([mu, log_sigma_y, log_sigma_h, logit_phi, logit_rho], dim=1)
         return tmb_params
 
-    def inv(self, tmb_x):
+    def inv(self, tmb_x: torch.Tensor) -> torch.Tensor:
         mu, log_sigma_y, log_sigma_h, logit_phi, logit_rho = tmb_x.T
         c_params = torch.stack([
             mu, log_sigma_y.exp(), log_sigma_h.exp(),
@@ -96,21 +101,8 @@ class SvTmbTransform:
         ], dim=1)
         return c_params
 
-    def log_abs_det(self, constrained_x):
-        mu, sigma_y, sigma_h, phi, rho = constrained_x.T
-        grad_mu = torch.ones_like(mu)
-        grad_sigma_y = 1 / sigma_y
-        grad_sigma_h = 1 / sigma_h
-        grad_phi = 2 / ((1 + phi) * (1 - phi))
-        grad_rho = 2 / ((1 + rho) * (1 - rho))
-        grads = [grad_mu, grad_sigma_y, grad_sigma_h, grad_phi, grad_rho]
-        log_abs_dets = torch.zeros(size=(constrained_x.shape[0],))
-        for i in range(len(grads)):
-            log_abs_dets += grads[i].abs().log()
-        return log_abs_dets
-
 class SabrTmbTransform:
-    def to(self, constrained_x):
+    def to(self, constrained_x: torch.Tensor) -> torch.Tensor:
         mu, beta, sigma, rho = constrained_x.T
         log_beta = torch.log(beta)
         log_sigma = torch.log(sigma)
@@ -119,21 +111,9 @@ class SabrTmbTransform:
         tmb_params = torch.stack([mu, log_beta, log_sigma, logit_rho], dim=1)
         return tmb_params
     
-    def inv(self, tmb_x):
+    def inv(self, tmb_x: torch.Tensor) -> torch.Tensor:
         mu, log_beta, log_sigma, logit_rho = tmb_x.T
         c_params = torch.stack([
             mu, log_beta.exp(), log_sigma.exp(), inv_logit(logit_rho)
         ], dim=1)
         return c_params
-
-    def log_abs_det(self, constrained_x):
-        mu, beta, sigma, rho = constrained_x.T
-        grad_mu = torch.ones_like(mu)
-        grad_beta = 1 / beta
-        grad_sigma = 1 / sigma
-        grad_rho = 2 / ((1 + rho) * (1 - rho))
-        grads = [grad_mu, grad_beta, grad_sigma, grad_rho]
-        log_abs_dets = torch.zeros(size=(constrained_x.shape[0],))
-        for i in range(len(grads)):
-            log_abs_dets += grads[i].abs().log()
-        return log_abs_dets

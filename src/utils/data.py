@@ -1,8 +1,25 @@
+from typing import Tuple
+
 import torch
 import pandas as pd
 import datetime
+import numpy as np
 
-def load_data(path, start:str='', end:str=''):
+def load_data(path:str, start:str='', end:str='') -> Tuple[np.ndarray, torch.Tensor]:
+    """
+    Load time series data from a CSV file with columns ['date', 'close'].
+    Optionally filters the data to a date range [start, end].
+
+    Args:
+        path (str): Path to the CSV file.
+        start (str, optional): Start date in 'YYYY-MM-DD' format. Defaults to '' (no filter).
+        end (str, optional): End date in 'YYYY-MM-DD' format. Defaults to '' (no filter).
+
+    Returns:
+        Tuple[np.ndarray, torch.Tensor]:
+            - `dates`: NumPy array of dates (np.datetime64).
+            - `prices`: PyTorch tensor of asset prices (float32).
+    """
     spot_data = pd.read_csv(path, sep=',')
     spot_data['date'] = pd.to_datetime(spot_data['date'])
 
@@ -13,13 +30,7 @@ def load_data(path, start:str='', end:str=''):
 
     spot_data.set_index('date', inplace=True)
     s = spot_data['close'].to_numpy()
+
     dates = spot_data.index.to_numpy()
     s = torch.tensor(s, dtype=torch.float32)
     return dates, s
-
-def batch_data(data, batch_size):
-    T = len(data)
-    n_batches = T // batch_size
-    trim_len = n_batches * batch_size
-    data = data[-trim_len:]  # Trim the head to get full batches
-    return data.reshape(n_batches, batch_size)

@@ -1,6 +1,7 @@
 import torch
 from torch import distributions as D
 from math import pi
+
 from src.utils.special_functions import torch_k1e
 
 class InverseGaussian(D.Distribution):
@@ -15,7 +16,7 @@ class InverseGaussian(D.Distribution):
         mu, lam = self._get_params()
         return 0.5 * torch.log(lam / (2 * pi * x**3)) \
                 - lam * (x - mu)**2 / (2 * mu**2 * x)
-    
+
     def sample(self, sample_shape):
         mu, lam = self._get_params()
 
