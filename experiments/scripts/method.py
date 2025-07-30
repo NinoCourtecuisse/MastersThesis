@@ -23,17 +23,18 @@ def main(args):
 
     ######## Load data ########
     path = 'data/spx_spot.csv'
-    dates, S = load_data(path, start='2006-01-01', end='2011-01-01')
+    dates, S = load_data(path, start='2006-01-01', end='2024-01-01')
 
     ######## Hyperparameters ########
     dt = torch.tensor(1 / 252)
     N = 100    # Number of particles
     T = len(S) - 1
-    batch_size = 100
+    batch_size = 50
     first_update = 100
-    update_dates = torch.arange(start=first_update, end=T+1, step=40) # Wait 100 days of data for first update, then every 40 days.
+    update_freq = 20
+    update_dates = torch.arange(start=first_update, end=T+1, step=update_freq) # Wait 100 days of data for first update, then every 40 days.
     n_updates = len(update_dates)
-    window = 500
+    window = 252
 
     ######## Instantiate the model classes ########
     bs_prior = IndependentPrior([
@@ -44,7 +45,7 @@ def main(args):
     bs_particles = bs_model.transform.inv(bs_prior.sample(n_samples=N))
 
     cev_prior = CevPrior(
-        mu_dist = D.Normal(0., 0.1),
+        mu_dist = D.Normal(0., 0.05),
         beta_dist = ScaledBeta(5., 5., low=torch.tensor(0.5), high=torch.tensor(2.0)),
         v = 0.2, S=1000
     )
@@ -52,7 +53,7 @@ def main(args):
     cev_particles = cev_model.transform.inv(cev_prior.sample(n_samples=N))
 
     nig_prior = IndependentPrior([
-        D.Normal(0., 0.1),
+        D.Normal(0., 0.05),
         ScaledBeta(2.0, 2.0, low=0.01, high=1.0),
         D.Normal(-2.0, 2.0),
         ScaledBeta(1.5, 5.0, low=1e-6, high=0.1)
@@ -66,7 +67,7 @@ def main(args):
 
     particles = [bs_particles, cev_particles, nig_particles]
     init_model_classes_log_prior = torch.log(torch.ones(size=(M,)) / M) # Uniform
-    lrs = [1e-4, 1e-4, 1e-4]
+    lrs = [1e-4, 1e-4, 1e-3]
     model_classes_log_prior = init_model_classes_log_prior
 
     n_params = [len(p[0, :]) for p in particles]    # Number of parameters per model (2 for Black-Scholes, 3 for CEV, ...)
@@ -76,6 +77,7 @@ def main(args):
     for m in range(M):
         hist_particles[m][0, :, :] = model_classes[m].transform.to(particles[m])
     hist_log_pi = [torch.zeros(size=(T, N)) for m in range(M)]
+    hist_ll = [torch.zeros(size=(T, N)) for m in range(M)]
     hist_log_prior = [torch.zeros(size=(T+1,)) for m in range(M)]
     for m in range(M):
         hist_log_prior[m][0] = model_classes_log_prior[m]
@@ -92,15 +94,16 @@ def main(args):
             t_k_minus_1 = update_dates[i - 1]
 
         # Step 1: Follow "Estimate Nothing"
-        log_pi, log_iw = compute_log_weights(
-            model_classes, particles, model_classes_log_prior, price_data=S[t_k_minus_1:t_k+1]  # Use the data from previous update up to and including t_k
+        log_pi, log_iw, ll = compute_log_weights(
+            model_classes, particles, model_classes_log_prior, price_data=S[t_k_minus_1:t_k+1],  # Use the data from previous update up to and including t_k
+            temperature=1.
         )
         # Step 2: Update the particles
         # 2.1: Update the prior on model classes
         if i == 0:
             model_classes_log_prior = model_classes_log_prior
         else:
-            beta = 0.5
+            beta = 0.8
             model_classes_log_prior = beta * torch.logsumexp(log_pi[:, -1, :], dim=1) + (1 - beta) * init_model_classes_log_prior
             model_classes_log_prior -= torch.logsumexp(model_classes_log_prior, dim=0)
 
@@ -116,7 +119,7 @@ def main(args):
 
         new_particles = update_particles(
             model_classes, particles, log_iw, dataloader, batch_weights,
-            n_grad_steps=500, lrs=lrs,
+            n_grad_steps=100, lrs=lrs,
             resample=True, move=True, verbose=False
         )
         particles = new_particles
@@ -125,16 +128,22 @@ def main(args):
         for m in range(M):
             hist_particles[m][i+1, :, :] = model_classes[m].transform.to(particles[m])
             hist_log_pi[m][t_k_minus_1:t_k] = log_pi[m]
+            hist_ll[m][t_k_minus_1:t_k] = ll[m]
             hist_log_prior[m][t_k_minus_1+1:t_k] = torch.logsumexp(log_pi[m, :-1, :], dim=1)
             hist_log_prior[m][t_k] = model_classes_log_prior[m]
 
     ######## Plot results ########
     colors = ['blue', 'red', 'green']
-    index_plot = [torch.tensor(0), *update_dates]
-    dates_plot = dates[[idx.item() for idx in index_plot]]
 
+    params_names = [['\\mu', '\\sigma'], ['\\mu', '\\delta', '\\beta'], ['\\mu', '\\sigma', '\\xi', '\\eta']]
     for m in range(M):
         fig, axes = plt.subplots(n_params[m], 1, figsize=(10, 4), sharex=True)
+        param_str = ", ".join(params_names[m])
+        title = (
+            f"Set of parameters considered for model class {model_classes[m].__class__.__name__}\n"
+            f"${param_str}$ from top to bottom."
+        )
+        axes[0].set_title(title)
         for i in range(n_params[m]):
             ax = axes[i]
             for n in range(N):
@@ -145,16 +154,24 @@ def main(args):
     fig, ax = plt.subplots(figsize=(10, 4))
     for m in range(M):
         for i in range(n_params[m]):
-            ax.plot(dates[1:], hist_log_pi[m].exp(), linewidth=0.3, c=colors[m])
+            ax.plot(dates[update_dates[0]+1:], hist_ll[m][update_dates[0]:], linewidth=0.3, c=colors[m])
     ax.vlines(x=dates[update_dates], ymin=0, ymax=1, label='update', colors='black', linestyle='--', linewidth=0.5)
-    ax.plot(dates[1:], torch.log(S[1:] / S[:-1]) + 0.5, linewidth=0.5, linestyle='--')
+    #ax.plot(dates[update_dates[0]:], torch.log(S[update_dates[0]:] / S[update_dates[0]-1:-1]) + 0.25, linewidth=0.5, linestyle='--')
     fig.tight_layout()
 
     fig, ax = plt.subplots(figsize=(10, 4))
     for m in range(M):
-        ax.plot(dates, hist_log_prior[m].exp(), linewidth=1.5, c=colors[m], label=f'{model_classes[m].__class__.__name__}')
-    ax.vlines(x=dates[update_dates], ymin=0, ymax=3., label='update', colors='black', linestyle='--', linewidth=0.5)
-    ax.plot(dates[1:], torch.log(S[1:] / S[:-1]) + 0.5, linewidth=0.5, linestyle='--')
+        for i in range(n_params[m]):
+            ax.plot(dates[update_dates[0]+1:], hist_log_pi[m][update_dates[0]:].exp(), linewidth=0.3, c=colors[m])
+    ax.vlines(x=dates[update_dates], ymin=0, ymax=1, label='update', colors='black', linestyle='--', linewidth=0.5)
+    #ax.plot(dates[update_dates[0]:], torch.log(S[update_dates[0]:] / S[update_dates[0]-1:-1]) + 0.25, linewidth=0.5, linestyle='--')
+    fig.tight_layout()
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    for m in range(M):
+        ax.plot(dates[update_dates[0]:], hist_log_prior[m][update_dates[0]:].exp(), linewidth=1.5, c=colors[m], label=f'{model_classes[m].__class__.__name__}')
+    #ax.vlines(x=dates[update_dates], ymin=0, ymax=2., label='update', colors='black', linestyle='--', linewidth=0.5)
+    ax.plot(dates[update_dates[0]:], 3 * torch.log(S[update_dates[0]:] / S[update_dates[0]-1:-1]) + 1.5, linewidth=0.5, linestyle='--', label='returns')
     fig.legend()
     fig.tight_layout()
 

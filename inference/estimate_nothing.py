@@ -7,9 +7,10 @@ def get_batch_at_index(dataloader, i):
         raise IndexError(f"Batch index {i} out of range (0 ≤ i < {len(dataloader)})")
     return next(itertools.islice(dataloader, i, i+1))
 
-def compute_log_weights(model_classes, particles, model_classes_log_prior, price_data):
+def compute_log_weights(model_classes, particles, model_classes_log_prior, price_data,
+                        temperature=1.0):
     """
-    Compute the weights given by "Estimate Nothing", i.e. pi_t.
+    Compute the weights given by "Estimate Nothing", i.e. pi_t for t=t_{k-1}+1, ..., t_k.
 
     particles = list of tensors for each model class, in the unconstrained parametrization
     model_classes_prior = Tensor of shape (M,)
@@ -26,7 +27,8 @@ def compute_log_weights(model_classes, particles, model_classes_log_prior, price
         theta = particles[m]
         log_transitions = model_class.log_transition(theta, price_data[:-1], price_data[1:]).T    # (T, N)
         ll[m, :, :] = torch.cumsum(log_transitions, dim=0)
-    
+    ll = ll * temperature
+
     # Compute the weights
     log_numerator = ll + model_classes_log_prior.view(M, 1, 1)
     log_denomenator = torch.logsumexp(log_numerator, dim=[0, 2], keepdim=True)    # (1, T, 1)
@@ -38,7 +40,7 @@ def compute_log_weights(model_classes, particles, model_classes_log_prior, price
     log_denomenator = torch.logsumexp(log_numerator, dim=1, keepdim=True)   # (M, 1)
     log_iw = log_numerator - log_denomenator
 
-    return log_pi, log_iw
+    return log_pi, log_iw, ll + model_classes_log_prior.view(M, 1, 1)
 
 def update_particles(model_classes, particles:list[torch.Tensor], log_iw:torch.Tensor,
                    dataloader:torch.utils.data.DataLoader, batch_weights: torch.Tensor,
@@ -91,6 +93,20 @@ def update_particles(model_classes, particles:list[torch.Tensor], log_iw:torch.T
 
                 optimizer.step()
                 scheduler.step()
+            #for ep in range(n_epochs):
+            #    for batch_prices in dataloader:
+            #        optimizer.zero_grad()
+#
+            #        # SGLD
+            #        batch_prices = batch_prices[0]
+            #        batch_ll = torch.sum(model_class.log_transition(params, batch_prices[:-1], batch_prices[1:]), dim=1)
+            #        batch_lprior = model_class.prior.log_prob(model_class.transform.to(params))
+            #        loss = -(batch_lprior + n_batch * batch_ll).sum()
+            #        loss.backward()
+            #        if verbose: print(f"Epoch {ep+1}: Loss={loss.item():.3f}, Grad norm={torch.norm(params.grad).item():.3f}")
+#
+            #        optimizer.step()
+            #        scheduler.step()
             current_particles = params.detach().clone()
 
         new_particles[m] = current_particles

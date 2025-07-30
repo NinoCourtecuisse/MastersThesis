@@ -113,30 +113,14 @@ def main(args):
                 verbose=args.verbose)
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    tau = 0.01
     ax.plot(dates[start-1:stop], 10 * S[start-1:stop] / S[0], linewidth=0.5, c='grey')
-    ax.plot(dates[start-1:stop], tau * bs_ll, label='bs', linewidth=0.8)
-    ax.plot(dates[start-1:stop], tau * cev_ll, label='cev', linewidth=0.8)
-    ax.plot(dates[start-1:stop], tau * nig_ll, label='nig', linewidth=0.8)
-    ax.plot(dates[start-1:stop], tau * sv_ll, label='sv', linewidth=0.8)
-    ax.plot(dates[start-1:stop], tau * sabr_ll, label='sabr', linewidth=0.8)
+    ax.plot(dates[start-1:stop], bs_ll, label='bs', linewidth=0.8)
+    ax.plot(dates[start-1:stop], cev_ll, label='cev', linewidth=0.8)
+    ax.plot(dates[start-1:stop], nig_ll, label='nig', linewidth=0.8)
+    ax.plot(dates[start-1:stop], sv_ll, label='sv', linewidth=0.8)
+    ax.plot(dates[start-1:stop], sabr_ll, label='sabr', linewidth=0.8)
     ax.legend()
 
-    all_ll = torch.stack([bs_ll, cev_ll, nig_ll, sv_ll, sabr_ll], dim=0)
-    log_l_normalized = tau * all_ll
-    log_normalization = torch.logsumexp(log_l_normalized, dim=0)
-    log_posterior = log_l_normalized - log_normalization
-    posterior = torch.exp(log_posterior)
-
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(dates[start-1:stop], 0.5 * S[start-1:stop] / S[0], linewidth=0.5, c='grey')
-    ax.plot(dates[start-1:stop], posterior[0, :], label='bs', linewidth=0.8)
-    ax.plot(dates[start-1:stop], posterior[1, :], label='cev', linewidth=0.8)
-    ax.plot(dates[start-1:stop], posterior[2, :], label='nig', linewidth=0.8)
-    ax.plot(dates[start-1:stop], posterior[3, :], label='sv', linewidth=0.8)
-    ax.plot(dates[start-1:stop], posterior[4, :], label='sabr', linewidth=0.8)
-    ax.grid()
-    ax.legend()
     plt.show()
 
 if __name__ == '__main__':
