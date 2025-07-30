@@ -36,7 +36,7 @@ class CevPrior:
 
     def _default_delta_given_beta(self, beta):
         loc = self.a + self.b * beta
-        return D.LogNormal(loc, 0.5)
+        return D.LogNormal(loc, 1.0)
 
     def sample(self, n_samples=1):
         mu = self.mu_dist.sample((n_samples,))

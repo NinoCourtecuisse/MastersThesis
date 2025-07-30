@@ -20,5 +20,6 @@ def load_data(path, start:str='', end:str=''):
 def batch_data(data, batch_size):
     T = len(data)
     n_batches = T // batch_size
-    data = data[:n_batches * batch_size]  # Trim to full batches
+    trim_len = n_batches * batch_size
+    data = data[-trim_len:]  # Trim the head to get full batches
     return data.reshape(n_batches, batch_size)
