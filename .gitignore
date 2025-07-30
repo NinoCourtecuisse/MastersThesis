@@ -9,4 +9,4 @@
 PyMB/likelihoods/tmb_tmp/*
 .vscode/settings.json
 todo.txt
-experiments/garbage/*
+garbage/*
