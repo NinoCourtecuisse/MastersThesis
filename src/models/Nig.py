@@ -1,24 +1,15 @@
 import torch
-from torch import distributions as D
+
 from src.utils.distributions import InverseGaussian, NormalInverseGaussian
 from src.utils.priors import NigPrior, IndependentPrior
-from src.utils.optimization import NigTransform, IndependentTransform
+from src.models import Model
 
-class Nig():
-    def __init__(self, dt: list[float, torch.Tensor], prior: list[IndependentPrior, NigPrior]):
-        if isinstance(dt, float):
-            self.dt = torch.tensor(dt)
-        else:
-            self.dt = dt
-        self.prior = prior
-        if isinstance(prior, IndependentPrior):
-            self.transform = IndependentTransform(prior)
-        else:
-            self.transform = NigTransform(prior)
+class Nig(Model):
+    def __init__(self, dt:float|torch.Tensor, prior:IndependentPrior|NigPrior):
+        super().__init__(dt, prior)
 
-    def log_transition(self, opt_params, s, s_next):
-        # Expects params in optimization parametrization
-        params = self.transform.to(opt_params)
+    def log_transition(self, u_params, s, s_next):
+        params = self.transform.to(u_params)
         mu, sigma, xi, eta = params.T.unsqueeze(2)  # shape (4, N, 1)
         dt = self.dt
 
@@ -31,23 +22,9 @@ class Nig():
         ).log_prob(log_return)
         return log_transition
 
-    def ll(self, opt_params, data):
-        # Expects params in optimization parametrization
-        s = data[:-1]
-        s_next = data[1:]
-        log_transitions = self.log_transition(opt_params, s, s_next)
-        ll = torch.sum(log_transitions, dim = 1)
-        return ll
-
-    def lpost(self, opt_params, data):
-        llik = self.ll(opt_params, data)
-        lprior = self.prior.log_prob(self.transform.to(opt_params))
-        return llik + lprior
-
-    def simulate(self, params, s0, T, M):
-        # Expects params in natural parametrization
+    def simulate(self, c_params, s0, T, M):
         with torch.no_grad():
-            mu, sigma, xi, eta = params.T.unsqueeze(2)
+            mu, sigma, xi, eta = c_params.T.unsqueeze(2)
             mu_, alpha, beta, delta = NormalInverseGaussian.reparametrize(mu, sigma, xi, eta)
             dt = self.dt
             n = int(torch.round(T / dt).item())

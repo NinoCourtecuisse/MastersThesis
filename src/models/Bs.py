@@ -1,19 +1,16 @@
 import torch
 from torch import distributions as D
+
 from src.utils.priors import IndependentPrior
-from src.utils.optimization import IndependentTransform
+from src.models import Model
 
-class Bs():
-    def __init__(self, dt: float, prior: IndependentPrior):
-        self.dt = dt
-        self.prior = prior
-        self.transform = IndependentTransform(prior)
+class Bs(Model):
+    def __init__(self, dt:float|torch.Tensor, prior:IndependentPrior):
+        super().__init__(dt, prior)
 
-    def log_transition(self, opt_params, s, s_next):
-        # Expects params in optimization parametrization
-        params = self.transform.to(opt_params)
-        mu = params[:, 0].unsqueeze(1)
-        sigma = params[:, 1].unsqueeze(1)
+    def log_transition(self, u_params, s, s_next):
+        params = self.transform.to(u_params)
+        mu, sigma = params.T.unsqueeze(2)
         dt = self.dt
 
         mean = torch.log(s) + (mu - 0.5 * sigma**2) * dt
@@ -24,25 +21,10 @@ class Bs():
         ).log_prob(torch.log(s_next))
         return log_transition
 
-    def ll(self, opt_params, data):
-        # Expects params in optimization parametrization
-        s = data[:-1]
-        s_next = data[1:]
-        log_transitions = self.log_transition(opt_params, s, s_next)
-        ll = torch.sum(log_transitions, dim = 1)
-        return ll
-
-    def lpost(self, opt_params, data):
-        llik = self.ll(opt_params, data)
-        lprior = self.prior.log_prob(self.transform.to(opt_params))
-        return llik + lprior
-
-    def simulate(self, params, s0, T, M):
-        # Expects params in natural parametrization
+    def simulate(self, c_params, s0, T, M):
         with torch.no_grad():
             dt = self.dt
-            mu = params[:, 0].unsqueeze(1)
-            sigma = params[:, 1].unsqueeze(1)
+            mu, sigma = c_params.T.unsqueeze(2)
 
             n = int(torch.round(T / dt).item())
             s = torch.zeros((n + 1, M))
