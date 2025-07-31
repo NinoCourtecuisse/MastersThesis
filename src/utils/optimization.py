@@ -2,7 +2,6 @@ import torch
 from torch import distributions as D
 import torch.distributions.transforms as T
 
-from src.utils.priors import IndependentPrior, CevPrior, NigPrior
 from src.utils.special_functions import logit, inv_logit
 
 """
@@ -17,7 +16,7 @@ Constraints are inferred from the associated prior distributions.
 """
 
 class IndependentTransform:
-    def __init__(self, prior: IndependentPrior):
+    def __init__(self, prior):
         self.transforms = []
         for i, d in enumerate(prior.dists):
             constraint = d.support
@@ -37,7 +36,7 @@ class IndependentTransform:
         return torch.stack(unconstrained_x, dim=-1)
 
 class CevTransform:
-    def __init__(self, prior: CevPrior):
+    def __init__(self, prior):
         self.mu_transform = D.transform_to(prior.mu_dist.support)
         self.beta_transform = D.transform_to(prior.beta_dist.support)
         self.delta_transform = T.ExpTransform()
@@ -60,7 +59,7 @@ class CevTransform:
         return torch.stack([u_mu, u_delta, u_beta], dim=-1)
 
 class NigTransform:
-    def __init__(self, prior: NigPrior):
+    def __init__(self, prior):
         self.mu_transform = D.transform_to(prior.mu_dist.support)
         self.sigma_transform = D.transform_to(prior.sigma_dist.support)
         self.eta_transform = D.transform_to(prior.eta_dist.support)
