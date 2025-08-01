@@ -2,13 +2,20 @@ import torch
 import matplotlib.pyplot as plt
 from src.utils.data import load_data
 
+"""
+Compute moments of SP500 historical log-returns.
+
+Usage:
+    ./run.sh experiments/moments_sp500.py
+"""
+
 def main():
-    ######## Load data ########
+    # === Load market data ===
     path = 'data/spx_spot.csv'
     dates, s = load_data(path)
-
     log_returns = torch.log(s[1:] / s[:-1])
-    ######## Compute moments ########
+
+    # === Compute moments ===
     mean = log_returns.mean()
     std = log_returns.std()
     min = log_returns.min()

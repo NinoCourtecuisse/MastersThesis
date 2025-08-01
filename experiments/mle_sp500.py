@@ -12,6 +12,14 @@ from src.utils.distributions import ScaledBeta
 
 from src.models import Bs, Cev, Nig, Sv, Sabr
 
+"""
+Compute the MLE every months for several models.
+The log-likelihood of each models at each time is plotted for comparison.
+
+Usage:
+    ./run.sh experiments/mle_sp500.py
+"""
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0)
@@ -19,6 +27,9 @@ def parse_args():
 
 def mle(model, params_init, data, lr, start, stop,
         optimization_times, n_grad_steps, window):
+    """
+    Compute the MLE of a model using historical data at several point in time.
+    """
     params = model.transform.inv(params_init).requires_grad_(True)
     optimizer = Adam([params], lr=lr)
 
@@ -41,26 +52,27 @@ def mle(model, params_init, data, lr, start, stop,
 def main(args):
     torch.manual_seed(args.seed)
 
-    ######## Load data ########
+    # === Load market data ===
     path = 'data/spx_spot.csv'
     dates, S = load_data(path)
 
-    ######## Hyper parameters ########
+    # === Hyper parameters ===
     dt = 1 / 252
-    window = 200
-    optimization_freq = 20 # days
+    window = 252                # Use last year of data to compute the MLE
+    optimization_freq = 20      # Compute the MLE every 20 days
     start = window
     stop = len(S) + 1
     optimization_times = torch.arange(start, stop, step=optimization_freq)
-    n_grad_steps = 50
+    n_grad_steps = 50           # Do 50 gradient steps to compute the MLE
 
-    ######## Instantiate the model ########
-    prior = IndependentPrior([  # Only used to constain the params
+    # === Hyper parameters ===
+    # Need to define a prior to map the parameters to an unconstrained space.
+    prior = IndependentPrior([
         D.Normal(0., 1.),
         D.LogNormal(0., 1.)
     ])
     bs_model = Bs(dt, prior)
-    bs_init = torch.tensor([[0.01, 0.2]])   # mu, sigma
+    bs_init = torch.tensor([[0.01, 0.2]])   # Initial guess: mu, sigma
 
     prior = CevPrior(
         mu_dist = D.Uniform(-0.5, 0.5),
@@ -98,16 +110,15 @@ def main(args):
     sabr_model = Sabr(dt, prior)
     sabr_init = torch.tensor([[0.0, 1.0, 0.2, -0.5]])
 
-    ######## MLE ########
-
+    # === Compute the MLE for each model at each time ===
     bs_ll = mle(bs_model, bs_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
     cev_ll = mle(cev_model, cev_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
     nig_ll = mle(nig_model, nig_init, S, 0.1, start, stop, optimization_times, n_grad_steps, window)
     sv_ll = mle(sv_model, sv_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window)
     sabr_ll = mle(sabr_model, sabr_init, S, 0.01, start, stop, optimization_times, n_grad_steps, window)
 
+    # === Plot the log-likelihood value at the MLE for each model at each time ===
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(dates[start-1:stop], 10 * S[start-1:stop] / S[0], linewidth=0.5, c='grey')
     ax.plot(dates[start-1:stop], bs_ll, label='bs', linewidth=0.8)
     ax.plot(dates[start-1:stop], cev_ll, label='cev', linewidth=0.8)
     ax.plot(dates[start-1:stop], nig_ll, label='nig', linewidth=0.8)
