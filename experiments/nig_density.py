@@ -4,6 +4,13 @@ import matplotlib.pyplot as plt
 
 from src.utils.distributions import NormalInverseGaussian
 
+"""
+Plots the NIG density for different parameters.
+
+Usage:
+    ./run.sh experiments/nig_density.py
+"""
+
 def main():
     params = {
         'mu': torch.tensor([0., 0., 0.]),
