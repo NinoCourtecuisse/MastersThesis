@@ -14,8 +14,10 @@ class Cev(Model):
         dt = self.dt
 
         C = torch.tensor(10**3)
-        tmp1 = C**2 * torch.exp((beta - 2) * mu * dt) * torch.ones(size=(len(mu), len(s)))
-        tmp2 = s[None, :]**(beta - 2)
+        s_size = s.shape[0] if s.ndim > 0 else 1
+        mu_size = mu.shape[0]
+        tmp1 = C**2 * torch.exp((beta - 2) * mu * dt) * torch.ones(size=(mu_size, s_size))
+        tmp2 = s.view(1, -1)**(beta - 2)
         local_var = delta**2 * torch.minimum(tmp1, tmp2)
 
         mean = torch.log(s) + (mu - 0.5 * local_var) * dt
