@@ -2,6 +2,13 @@ import torch
 from src.utils.distributions import ScaledBeta
 import matplotlib.pyplot as plt
 
+"""
+Plots the Scaled Beta density for different parameters.
+
+Usage:
+    ./run.sh experiments/beta_density.py
+"""
+
 def main():
     eval = torch.linspace(-1, 1, 100)
 

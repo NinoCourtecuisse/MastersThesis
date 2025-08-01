@@ -7,26 +7,37 @@ from src.utils.priors import CevPrior
 from src.utils.distributions import ScaledBeta
 from src.models import Cev
 
-def main():
-    ######## Load data ########
-    path = 'data/spx_spot.csv'
-    dates, s = load_data(path)
+"""
+Plot the chosen prior for the CEV model.
+Contour plot of the likelihood.
 
+Usage:
+    ./run.sh experiments/cev_prior.py
+"""
+
+def main():
+    # === Load market data ===
+    path = 'data/spx_spot.csv'
+    dates, s = load_data(path, start='2006-01-01', end='2024-01-01')
     dt = torch.tensor(1 / 252)
+
+    # === Define the prior ===
     prior = CevPrior(
         mu_dist=D.Normal(0., 0.1),
         beta_dist=ScaledBeta(5., 5., low=torch.tensor(0.5), high=torch.tensor(2.0))
     )
     model = Cev(dt, prior)
 
-    ######## Compute and plot the ll ########
+    # === Compute and plot the log-likelihood ===
+    # Generate grid of parameters
     mu_eval = torch.tensor(0.)
     delta_eval = torch.linspace(1., 30, 200)
     beta_eval = torch.linspace(0.5, 2.0, 200)
     delta_grid, beta_grid = torch.meshgrid([delta_eval, beta_eval], indexing='ij')
     mu_grid = mu_eval * torch.ones_like(delta_grid)
     params_eval = torch.column_stack((mu_grid.ravel(), delta_grid.ravel(), beta_grid.ravel()))
-    transformed_params = model.transform.inv(params_eval)
+
+    transformed_params = model.transform.inv(params_eval)   # Map to unconstrained space to evaluate the log-likelihood
     ll = model.ll(transformed_params, data=s[:100]).view(200, 200)
 
     fig1 = plt.figure(figsize=(5, 3))
@@ -37,12 +48,12 @@ def main():
     fig1.colorbar(contour)
     plt.contour(delta_grid.log(), beta_grid, ll, levels=fine_levels, linewidths=0.3)
 
-    ######## Plot the approximation line ########
+    # === Plot the approximated linear relation between log(delta) and beta ===
     a = torch.tensor(0.2 * 1000).log()
     b = - torch.tensor(1000).log() / 2
     plt.plot(delta_eval.log(), (delta_eval.log() - a) / b, c='red', label=r'$a_1 + a_2\beta$')
 
-    plt.xlabel(r'$\delta$')
+    plt.xlabel(r'$\log\delta$')
     plt.ylabel(r'$\beta$')
     plt.legend()
 
