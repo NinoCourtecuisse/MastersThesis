@@ -41,6 +41,7 @@ class ModelPool:
 
         Args:
             data (torch.Tensor): Tensor of shape (T+1,) of asset prices.
+            temperature (float): tau, used to "temper" the log-likelihood.
 
         Returns:
             torch.Tensor: Tensor of shape (M, T, N) where each entry (m, t, i)
@@ -77,14 +78,16 @@ class ModelPool:
         return log_pi, final_log_iw, log_post.squeeze(), ll + self.log_prior.view(self.M, 1, 1)
 
     def update_particles(self, dataloader:DataLoader, log_iw:torch.Tensor,
-                         n_grad_steps:int, lrs:list[float], batch_weights:torch.Tensor):
+                         n_grad_steps:int, lrs:list[float]):
         """
         Update all the particles in two steps:
         1. Resample based on the importance weights.
         2. Move towards the MAP with SGLD.
 
         Args:
+            dataloader (DataLoader): Batched dataset of asset prices.
             log_iw (torch.Tensor): Tensor of shape (M, N) of log importance weights.
+            n_grad_steps (int): Number of SGLD steps to perform.
             lrs (list[float]): List of learning rate for each model class.
         Returns:
         """
@@ -109,7 +112,7 @@ class ModelPool:
                 optimizer.zero_grad()
 
                 # Choose batch of data
-                batch_idx = torch.multinomial(batch_weights, num_samples=1)
+                batch_idx = torch.randint(low=0, high=n_batch, size=(1,)).item()
                 data = get_batch_at_index(dataloader, batch_idx)[0]
 
                 batch_ll = torch.sum(

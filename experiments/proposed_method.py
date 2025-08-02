@@ -135,15 +135,12 @@ def main(args):
         #   2.2 and 2.3: Resample and move 
         dataset = TensorDataset(S[max(t_k+1-window, 0):t_k+1])
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        n_batch = len(dataloader)
-        batch_weights = torch.ones(size=(n_batch,)) / n_batch
 
         model_pool.update_particles(
             dataloader,
             log_iw,
             n_grad_steps=100,
-            lrs=lrs,
-            batch_weights=batch_weights
+            lrs=lrs
         )
         new_particles = model_pool.particles
 
