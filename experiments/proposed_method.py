@@ -104,18 +104,18 @@ def main(args):
     for m in range(M):
         hist_log_prior[m][0] = init_model_classes_log_prior[m]
 
-    for i in range(n_updates + 1):              #TODO: Change i to k
+    for k in range(n_updates + 1):
         # Loop of t_k for k=1, ..., K
-        print(f"Update index: {i+1} / {n_updates + 1}")
-        if i==0:
-            t_k = update_dates[i]
+        print(f"Update index: {k + 1} / {n_updates + 1}")
+        if k==0:
+            t_k = update_dates[k]
             t_k_minus_1 = 0
-        elif i==n_updates:
+        elif k==n_updates:
             t_k = T
-            t_k_minus_1 = update_dates[i - 1]
+            t_k_minus_1 = update_dates[k - 1]
         else:
-            t_k = update_dates[i]
-            t_k_minus_1 = update_dates[i - 1]
+            t_k = update_dates[k]
+            t_k_minus_1 = update_dates[k - 1]
 
         # Step 1: For t=t_{k-1}+1, ..., t_k
         #   Follow "Estimate Nothing"
@@ -126,17 +126,17 @@ def main(args):
 
         # Step 2: Update the particles
         #   2.1: Update the prior on model classes
-        if i > 0:
+        if k > 0:
             beta = 0.8
             model_classes_log_prior = beta * log_post[:, -1] + (1 - beta) * init_model_classes_log_prior
             model_classes_log_prior -= torch.logsumexp(model_classes_log_prior, dim=0)
             model_pool.log_prior = model_classes_log_prior
 
         #   2.2 and 2.3: Resample and move 
-        dataset = TensorDataset(S[max(t_k+1-window, 0):t_k+1])      #TODO: Useless to use Dataloader
+        dataset = TensorDataset(S[max(t_k+1-window, 0):t_k+1])
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         n_batch = len(dataloader)
-        batch_weights = torch.ones(size=(n_batch,)) / n_batch       #TODO: Delete weights
+        batch_weights = torch.ones(size=(n_batch,)) / n_batch
 
         model_pool.update_particles(
             dataloader,
@@ -149,7 +149,7 @@ def main(args):
 
         # Save
         for m in range(M):
-            hist_particles[m][i+1, :, :] = model_classes[m].transform.to(new_particles[m])
+            hist_particles[m][k+1, :, :] = model_classes[m].transform.to(new_particles[m])
             hist_log_pi[m][t_k_minus_1:t_k] = log_pi[m]
             hist_ll[m][t_k_minus_1:t_k] = ll[m]
             hist_log_prior[m][t_k_minus_1+1:t_k] = log_post[m, :-1]
