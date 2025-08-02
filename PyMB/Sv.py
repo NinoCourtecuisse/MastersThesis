@@ -7,7 +7,7 @@ from src.utils.special_functions import logit, inv_logit
 from PyMB import PyMB_model, Laplace
 
 class Sv():
-    def __init__(self, dt: list[float, torch.Tensor], prior: IndependentPrior):
+    def __init__(self, dt: float|torch.Tensor, prior: IndependentPrior):
         if isinstance(dt, float):
             self.dt = torch.tensor(dt)
         else:
@@ -15,8 +15,6 @@ class Sv():
         self.prior = prior
         self.transform = IndependentTransform(prior)
 
-        self.m_vec = PyMB_model(name='sv_vec')
-        self.m_vec.load_model(so_file='PyMB/likelihoods/tmb_tmp/sv_vec.so')
         self.m = PyMB_model(name='sv')
         self.m.load_model(so_file='PyMB/likelihoods/tmb_tmp/sv.so')
 
@@ -32,23 +30,6 @@ class Sv():
         self.m.data['y'] = log_returns.numpy()
         self.m.init['h'] = torch.zeros_like(log_returns).numpy()
         self.m.build_objective_function(random=['h'], silent=True)
-    
-    def build_objective_vec(self, data, n_particles):
-        self.m_vec.init['mu'] = np.zeros((n_particles,))        # Dummy parameters, will not be used
-        self.m_vec.init['log_sigma_y'] = np.zeros((n_particles,))
-        self.m_vec.init['log_sigma_h'] = np.zeros((n_particles,))
-        self.m_vec.init['logit_phi'] = 3 * np.ones((n_particles,))
-        self.m_vec.init['logit_rho'] = np.zeros((n_particles,))
-
-        log_returns = torch.log(data[1:] / data[:-1])
-        self.m_vec.data['N'] = len(log_returns)
-        self.m_vec.data['P'] = n_particles
-        self.m_vec.data['dt'] = self.dt.item()
-
-        rep_ret = np.tile(log_returns.numpy()[:, None], (1, n_particles)).T
-        self.m_vec.data['y'] = rep_ret
-        self.m_vec.init['h'] = np.zeros_like(rep_ret)
-        self.m_vec.build_objective_function(random=['h'], silent=True)
 
     def transform_tmb(self, natural_params):
         # Natural params: mu, sigma_y, sigma_h, phi, rho (annualized)

@@ -11,8 +11,8 @@ from src.utils.priors import IndependentPrior, CevPrior, NigPrior
 from src.utils.distributions import ScaledBeta
 
 from src.models import Bs, Cev, Nig
-from src.models.Sv import Sv
-from src.models.Sabr import Sabr
+from PyMB.Sv import Sv
+from PyMB.Sabr import Sabr
 
 """
 Compute the MLE every months for several models.

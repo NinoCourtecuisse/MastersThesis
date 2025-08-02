@@ -38,7 +38,7 @@ def main(args):
     # This prior is only used to define a support. Its actual hyperparameters are ignored.
     match args.model:
         case 'sv':
-            from src.models.Sv import Sv as Model
+            from PyMB.Sv import Sv as Model
             prior = IndependentPrior([
                 D.Uniform(-0.1, 0.1),   # mu
                 D.LogNormal(0., 1.),    # sigma_y > 0
@@ -48,7 +48,7 @@ def main(args):
             ])
             params_init = torch.tensor([[-0.08, 1.0, 1.0, -0.5, -0.8]])     # Inital guess
         case 'sabr':
-            from src.models.Sabr import Sabr as Model
+            from PyMB.Sabr import Sabr as Model
             prior = IndependentPrior([
                 D.Uniform(-1e-2, 1e-2),     # mu
                 D.LogNormal(0., 1.),        # beta > 0
