@@ -1,44 +1,17 @@
 from torch.optim.lr_scheduler import _LRScheduler
 
-class PowerInterpolationLRScheduler(_LRScheduler):
-    """
-    LR Schedule a + (1 - b * t)^\gamma * c where a, b, c are chosen such that
-    1. The initial lr, base_lr, is the one provided by the user in the optimizer.
-    2. The minimum lr, lr_min, is attained after n_steps steps.
-    3. The lr is kept constant below lr_min.
-    """
-    def __init__(self, optimizer, gamma, lr_min, n_steps, last_epoch=-1):
-        self.gamma = gamma
-        self.lr_min = lr_min
-        self.n_steps = n_steps
-
-        base_lrs = [group['lr'] for group in optimizer.param_groups]
-        assert all(lr == base_lrs[0] for lr in base_lrs), \
-            "All param groups must have the same base learning rate"
-        self.base_lr = base_lrs[0]
-        self.lr_diff = self.base_lr - self.lr_min
-
-        self.a = self.lr_min
-        self.b = 1 / self.n_steps
-        self.c = self.lr_diff
-        super().__init__(optimizer, last_epoch)
-
-    def get_lr(self):
-        t = self.last_epoch
-        if t < self.n_steps:
-            lr = self.a + (1 - self.b * t)**(self.gamma) * self.c
-        else:
-            lr = self.lr_min
-        return [lr for _ in self.optimizer.param_groups]
-
 class PowerLRScheduler(_LRScheduler):
     """
-    LR Schedule a(b + t)^{-\gamma} where a, b are chosen such that
-    1. The initial lr, base_lr, is the one provided by the user in the optimizer.
-    2. The minimum lr, lr_min, is attained after n_steps steps.
+    LR Schedule of the form
+        a(b + t)^{-\gamma}
+    used with SGLD.
+
+    a, b are chosen such that
+    1. The initial lr, is the one provided by the user in the optimizer.
+    2. The minimum lr, is attained after n_steps steps.
     3. The lr is kept constant below lr_min.
     """
-    def __init__(self, optimizer, gamma, lr_min, n_steps, last_epoch=-1):
+    def __init__(self, optimizer, gamma:float, lr_min:float, n_steps:int, last_epoch=-1):
         self.gamma = gamma
         self.lr_min = lr_min
         self.n_steps = n_steps
