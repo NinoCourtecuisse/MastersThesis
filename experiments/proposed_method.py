@@ -13,6 +13,10 @@ from src.models import ModelPool
 from src.models import Bs, Cev, Nig
 
 """
+Perform the proposed method: Given a set of M model classes and initial particles
+and update dates (t_k),
+    1. Follow estimate nothing for t=t_{k-1}+1, ..., t_k
+    2. Update the particles at t=t_k via SGLD steps.
 
 Usage:
     ./run.sh experiments/proposed_method.py
@@ -167,12 +171,13 @@ def main(args):
             f"Set of parameters considered for model class {model_classes[m].__class__.__name__}\n"
             f"${param_str}$ from top to bottom."
         )
-        axes[0].set_title(title)
+        axes[0].set_title(title, fontsize=17)
         for i in range(dims[m]):
             ax = axes[i]
             for n in range(N):
                 ax.scatter(dates[update_dates], hist_particles[m][1:-1, n, i], marker='+', s=10.0)
             ax.grid()
+            ax.tick_params(axis='both', labelsize=15)
         fig.tight_layout()
 
     # Plot the unnormalized "Estimate Nothing" weights for all particles at all times
@@ -181,6 +186,7 @@ def main(args):
         for i in range(dims[m]):
             ax.plot(dates[update_dates[0]+1:], hist_ll[m][update_dates[0]:], linewidth=0.3, c=colors[m])
     ax.vlines(x=dates[update_dates], ymin=0, ymax=1, label='update', colors='black', linestyle='--', linewidth=0.5)
+    ax.tick_params(axis='both', labelsize=15)
     fig.tight_layout()
 
     # Plot the "Estimate Nothing" weights for all particles at all times
@@ -189,6 +195,7 @@ def main(args):
         for i in range(dims[m]):
             ax.plot(dates[update_dates[0]+1:], hist_log_pi[m][update_dates[0]:].exp(), linewidth=0.3, c=colors[m])
     ax.vlines(x=dates[update_dates], ymin=0, ymax=1, label='update', colors='black', linestyle='--', linewidth=0.5)
+    ax.tick_params(axis='both', labelsize=15)
     fig.tight_layout()
 
     # Plot the priors on the model classes at all times
@@ -197,7 +204,8 @@ def main(args):
         ax.plot(dates[update_dates[0]:], hist_log_prior[m][update_dates[0]:].exp(),
                 linewidth=1.5, c=colors[m], label=f'{model_classes[m].__class__.__name__}')
     ax.plot(dates[update_dates[0]:], 3 * torch.log(S[update_dates[0]:] / S[update_dates[0]-1:-1]) + 1.5, linewidth=0.5, linestyle='--', label='returns')
-    fig.legend()
+    ax.tick_params(axis='both', labelsize=15)
+    fig.legend(fontsize=15)
     fig.tight_layout()
 
     plt.show()
