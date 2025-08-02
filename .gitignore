@@ -1,7 +1,9 @@
 .DS_Store
 *.pyc
 *.log
-/data/*
+/data/spx_vol.csv
+/data/spy.csv
+spx_spot.csv
 .venv/*
 .vscode/launch.json
 *.pt
