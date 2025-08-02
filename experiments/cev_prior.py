@@ -45,7 +45,6 @@ def main():
     levels = torch.linspace(0.9 * ll_max, ll_max, 50)
     fine_levels = torch.linspace(0.99 * ll_max, ll_max, 1)
     contour = plt.contourf(delta_grid.log(), beta_grid, ll, levels=levels, extend='min')
-    fig1.colorbar(contour)
     plt.contour(delta_grid.log(), beta_grid, ll, levels=fine_levels, linewidths=0.3)
 
     # === Plot the approximated linear relation between log(delta) and beta ===
@@ -53,9 +52,9 @@ def main():
     b = - torch.tensor(1000).log() / 2
     plt.plot(delta_eval.log(), (delta_eval.log() - a) / b, c='red', label=r'$a_1 + a_2\beta$')
 
-    plt.xlabel(r'$\log\delta$')
-    plt.ylabel(r'$\beta$')
-    plt.legend()
+    plt.xlabel(r'$\log\delta$', fontsize=20)
+    plt.ylabel(r'$\beta$', fontsize=20)
+    plt.legend(fontsize=20)
 
     plt.show()
 
