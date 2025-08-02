@@ -10,7 +10,7 @@ class Nig(Model):
 
     def log_transition(self, u_params, s, s_next):
         params = self.transform.to(u_params)
-        mu, sigma, xi, eta = params.T.unsqueeze(2)  # shape (4, N, 1)
+        mu, sigma, xi, eta = params.T.unsqueeze(2)
         dt = self.dt
 
         log_return = torch.log(s_next / s)

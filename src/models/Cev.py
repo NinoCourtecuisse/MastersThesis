@@ -13,6 +13,7 @@ class Cev(Model):
         mu, delta, beta = params.T.unsqueeze(2)
         dt = self.dt
 
+        # Andersen and Andreasen regularization of local volatility
         C = torch.tensor(10**3)
         s_size = s.shape[0] if s.ndim > 0 else 1
         mu_size = mu.shape[0]

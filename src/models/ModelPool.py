@@ -50,7 +50,7 @@ class ModelPool:
         """
         T = len(data) - 1
 
-        # Evaluate the log likelihood recursively           #TODO: Can avoid loop over t
+        # Evaluate the log likelihood recursively
         ll = torch.zeros(size=(self.M, T+1, self.N))
         for t in range(1, T+1):
             for m in range(self.M):
@@ -92,7 +92,6 @@ class ModelPool:
         n_batch = len(dataloader)
 
         for m in range(self.M):
-            #print(f"Model {m}")
             model_class = self.model_classes[m]
             particles = self.particles[m]   # (N, D_m)
 
@@ -120,7 +119,6 @@ class ModelPool:
                 batch_lprior = model_class.prior.log_prob(model_class.transform.to(params))
                 loss = -(batch_lprior + n_batch * batch_ll).sum()
                 loss.backward()
-                #if n % 100 == 0: print(f"Grad norm: {torch.norm(params.grad):.3f}")
 
                 optimizer.step()
                 scheduler.step()
