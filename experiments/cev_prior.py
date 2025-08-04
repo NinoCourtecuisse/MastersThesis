@@ -17,8 +17,8 @@ Usage:
 
 def main():
     # === Load market data ===
-    path = 'data/spx_spot.csv'
-    dates, s = load_data(path, start='2006-01-01', end='2024-01-01')
+    path = 'data/spx.csv'
+    dates, s = load_data(path, start='2006-01-01', end='2023-08-31')
     dt = torch.tensor(1 / 252)
 
     # === Define the prior ===

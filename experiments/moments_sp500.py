@@ -11,8 +11,8 @@ Usage:
 
 def main():
     # === Load market data ===
-    path = 'data/spx_spot.csv'
-    dates, s = load_data(path)
+    path = 'data/spx.csv'
+    dates, s = load_data(path, start='2006-01-01', end='2023-08-31')
     log_returns = torch.log(s[1:] / s[:-1])
 
     # === Compute moments ===

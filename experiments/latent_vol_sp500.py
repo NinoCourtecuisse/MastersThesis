@@ -29,8 +29,8 @@ def parse_args():
 
 def main(args):
     # === Load market data ===
-    path = 'data/spx_spot.csv'
-    dates, S = load_data(path, start='2006-01-01', end='2024-01-01')
+    path = 'data/spx.csv'
+    dates, S = load_data(path, start='2006-01-01', end='2023-08-31')
     dt = 1 / 252
 
     # === Instantiate the model: SV or SABR ===

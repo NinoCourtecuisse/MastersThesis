@@ -55,8 +55,8 @@ def main(args):
     torch.manual_seed(args.seed)
 
     # === Load market data ===
-    path = 'data/spx_spot.csv'
-    dates, S = load_data(path)
+    path = 'data/spx.csv'
+    dates, S = load_data(path, start='2006-01-01', end='2023-08-31')
 
     # === Hyper parameters ===
     dt = 1 / 252
