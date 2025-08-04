@@ -1,10 +1,21 @@
 # MastersThesis
 ## Setup
+You will need a working Python installation, we use Python 3.11.5.
+
 Start by cloning the repository
 ```
 git clone https://github.com/NinoCourtecuisse/MastersThesis.git
 ```
-From the root of the repository, you can install the Python requirements (ideally in a virtual environment to avoid dependency conflicts)
+then move to the root
+```
+cd MastersThesis
+```
+To avoid dependency conflicts, we recommend to create a virtual environment
+```
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+Finally, install the Python requirements
 ```
 pip install -r requirements.txt
 ```
@@ -12,9 +23,11 @@ pip install -r requirements.txt
 ## Reproducing experiments
 
 #### Data
-Before running the script, you need to load the historical prices of the S&P500 index into a file [`./data/spx_spot.csv`](./data/template.csv).  We used the data from 2006-01-03 to 2023-08-31 (including).
+We use close prices from the S&P500 Index (ticker: SPX) from 2006-01-03 to 2023-08-31 (both dates included). The dataset has a total of 4446 rows.  
 We obtained the data from Optionmetrics via Wharton Research Data
 Services (WRDS).
+
+The data needs to be saved as a comma separated CSV at [`./data/spx.csv`](./data/spx.csv) with two columns named 'date' and 'close'. An empty file with only the header is given as reference.
 
 #### Running the scripts
 The scripts to reproduce all the plots in the Master's thesis report can be found in [`./experiments`](./experiments).
