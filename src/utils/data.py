@@ -21,6 +21,8 @@ def load_data(path:str, start:str='', end:str='') -> Tuple[np.ndarray, torch.Ten
             - `prices`: PyTorch tensor of asset prices (float32).
     """
     spot_data = pd.read_csv(path, sep=',')
+    if spot_data.iloc[0, 1] == '...':
+        raise ValueError(f"The data was not loaded in {path}. See the Readme for instructions.")
     spot_data['date'] = pd.to_datetime(spot_data['date'])
 
     if len(start) > 0 and len(end) > 0:
