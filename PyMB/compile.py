@@ -4,13 +4,17 @@ from PyMB.model import check_R_TMB
 from PyMB.model import model as PyMB_model
 
 """
-Script to compile TMB custom models.
+Script to compile TMB custom models after writing the joint likelihood.
 See https://github.com/kaskr/adcomp/wiki/Tutorial#writing-the-c-function for a tutorial.
+
+Usage:
+    ./run.sh PyMB/compile.py --file_name sv
 """
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file_name', type=str, help='name of the .cpp file to compile, containing the model likelihood.')
+    parser.add_argument('--file_name', type=str, choices=['sv', 'sabr'],
+                        help='name of the .cpp file to compile, containing the model likelihood.')
     return parser.parse_args()
 
 def compile(file_name):

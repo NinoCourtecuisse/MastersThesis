@@ -46,14 +46,14 @@ To run the script, just run the command below usage from the root of the reposit
 ## About the repository
 
 The source code can be found in [`./src`](./src).  
-We describe some important components.
+We describe some important components below.
 
 #### Model classes
 The model classes are defined in [`./src/models`](./src/models).
 Each model class has
 -   A prior on its parameter space
--   A transform to map the parameter space to an unconstrained space
--   Implements a (log) transition density
+-   A transform to map the prior's support to an unconstrained space
+-   A (log) transition density
 
 The base logic is implemented in the parent class Model [`./src/models/Model.py`](./src/models/Model.py). All model classes inherits from Model.  
 
@@ -69,26 +69,38 @@ It inherits from torch.optim.Optimizer so that it can be used as any other PyTor
 
 #### Distributions
 Some distributions were not implemented in PyTorch, our implementation can be found in [`./src/utils/distributions.py`](./src/utils/distributions.py).
-It concerns the Inverse Gaussian, Normal Inverse Gaussian and Scale Beta distributions.
+It concerns the Inverse Gaussian, Normal Inverse Gaussian and Scaled Beta distributions.
 
 #### Special functions
 The (exponentially scaled) Bessel function of order 1 is implemented in 
 [`./src/utils/special_functions.py`](./src/utils/special_functions.py).  
-An implementation is available in PyTorch via torch.special.scaled_modified_bessel_k1, however the gradients were somehow unstable ruining the optimization.
+An implementation is available in PyTorch via the function
+```
+torch.special.scaled_modified_bessel_k1
+```
+however the gradients were somehow unstable ruining the optimization.
 
 ## Special case: SV models
 
 For stochastic volatility models, we use Template Model Builder (TMB, https://github.com/kaskr/adcomp).  
+
 In the end we don't use SV models for the main experiments so that this section can be skipped.  
-The only scripts that require TMB are [`./experiments/mle_sp500.py`](./experiments/mle_sp500.py) and [`./experiments/latent_vol_sp500.py`](./experiments/latent_vol_sp500.py).  
+The only scripts that require TMB are 
+- [`./experiments/mle_sp500.py`](./experiments/mle_sp500.py)
+- [`./experiments/latent_vol_sp500.py`](./experiments/latent_vol_sp500.py)
+
 If you want to run these scripts the following additional setup is required:
 - a working installation of R, see https://www.r-project.org for download.  
-- the TMB package, see https://github.com/kaskr/adcomp/wiki/Download.  
+- the R TMB package, see https://github.com/kaskr/adcomp/wiki/Download.  
 
-We use PyMB (https://github.com/kforeman/PyMB) to wrap TMB in Python. Due to versions incompatibility, it had to be revised and is therefore directly included in my repo at  [`./PyMB`](./PyMB).  
+We use PyMB (https://github.com/kforeman/PyMB) to wrap TMB in Python. Due to versions incompatibility, it had to be revised and is therefore directly included in the repository at  [`./PyMB/model.py`](./PyMB/model.py).
+
 To check that the R/TMB/PyMB installation was successful, run
 
 ```
 from PyMB.model import check_R_TMB
 assert check_R_TMB()
 ```
+
+To use the Laplace approximation from TMB, only the implementation of the joint log likelihood in C++ is required. This is done in [`./PyMB/likelihoods`](./PyMB/likelihoods).  
+The final step is to compile these files: Just run the script [`./PyMB/compile.py`](./PyMB/compile.py).

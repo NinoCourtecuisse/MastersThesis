@@ -5,8 +5,11 @@ from rpy2.robjects import numpy2ri
 from rpy2 import robjects as ro
 
 class Laplace(torch.autograd.Function):
+    """
+    Evaluate the Laplace approximation, and its gradients, using TMB.
+    """
     @staticmethod
-    def forward(ctx, par, tmb_model):
+    def forward(ctx, par:torch.Tensor, tmb_model) -> torch.Tensor:
         ctx.save_for_backward(par)
         ctx.tmb_model = tmb_model
 
@@ -16,7 +19,7 @@ class Laplace(torch.autograd.Function):
         return par.new_tensor(nll)
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output:torch.Tensor) -> torch.Tensor:
         (par,) = ctx.saved_tensors
         tmb_model = ctx.tmb_model
 
