@@ -30,7 +30,8 @@ Services (WRDS).
 The data needs to be saved as a comma separated CSV at [`./data/spx.csv`](./data/spx.csv) with two columns named 'date' and 'close'. An empty file with only the header is given as reference.
 
 #### Running the scripts
-The scripts to reproduce all the plots in the Master's thesis report can be found in [`./experiments`](./experiments).
+The scripts to reproduce all the plots in the Master's thesis report can be found in [`./experiments`](./experiments).  
+The script where our proposed method is implemented is [`./experiments/proposed_method.py`](./experiments/proposed_method.py).
 
 At the top of each script file, there is a comment of the form
 ```
@@ -41,12 +42,20 @@ Usage:
     ./run.sh experiments/name_of_script_file.py [arguments if needed]
 """
 ```
-To run the script, just run the command below usage from the root of the repository.
+To run a script, just run the command below usage from the root of the repository.
 
 ## About the repository
 
 The source code can be found in [`./src`](./src).  
 We describe some important components below.
+
+#### Model pool
+The class "ModelPool" defined [`./src/models/ModelPool.py`](./src/models/ModelPool.py) is the main object of interest. It represents several model classes with several parameters (a.k.a particles).  
+Two important methods are implemented:
+- estimate_nothing: Follow "Estimate Nothing" on this model pool
+- update_particles: Move the particles towards regions a-posteriori more likely.
+
+More information can be found with this implementation.
 
 #### Model classes
 The model classes are defined in [`./src/models`](./src/models).
