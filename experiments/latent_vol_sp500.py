@@ -9,6 +9,10 @@ from src.utils.data import load_data
 from src.utils.priors import IndependentPrior
 
 """
+Note:
+    This script requires TMB.
+    Make sure you followed the additional setup at the end of the Readme.
+
 Maximum Likelihood Estimation of some stochastic volatility models.
 Based on a Laplace approximation of the marginal likelihood.
 

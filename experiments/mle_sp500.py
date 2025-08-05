@@ -15,6 +15,10 @@ from PyMB.Sv import Sv
 from PyMB.Sabr import Sabr
 
 """
+Note:
+    This script requires TMB.
+    Make sure you followed the additional setup at the end of the Readme.
+
 Compute the MLE every months for several models.
 The log-likelihood of each models at each time is plotted for comparison.
 
