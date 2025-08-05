@@ -55,7 +55,7 @@ Two important methods are implemented:
 - estimate_nothing: Follow "Estimate Nothing" on this model pool
 - update_particles: Move the particles towards regions a-posteriori more likely.
 
-More information can be found with this implementation.
+More information can be found with the implementation.
 
 #### Model classes
 The model classes are defined in [`./src/models`](./src/models).
